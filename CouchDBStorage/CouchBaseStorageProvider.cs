@@ -24,6 +24,13 @@ namespace Orleans.Storage
     public class OrleansCouchBaseStorage : BaseJSONStorageProvider
     {
         /// <summary>
+        /// This is used internally only to avoid reinitializing the client connection
+        /// when multiple providers of this type are defined to store values in multiple
+        /// buckets.
+        /// </summary>
+        internal static bool IsInitialized;
+
+        /// <summary>
         /// Name of the bucket to store the data.
         /// </summary>
         /// <remarks>
@@ -53,11 +60,18 @@ namespace Orleans.Storage
             //sanity check of config values
             if (string.IsNullOrWhiteSpace(bucketName)) throw new ArgumentException("BucketName property not set");
             if (string.IsNullOrWhiteSpace(server)) throw new ArgumentException("Server property not set");
-
-            var clientConfig = new Couchbase.Configuration.Client.ClientConfiguration();
-            clientConfig.Servers.Clear();
-            clientConfig.Servers.Add(new Uri(server));
-            clientConfig.BucketConfigs.Clear();
+            Couchbase.Configuration.Client.ClientConfiguration clientConfig;
+            if (!OrleansCouchBaseStorage.IsInitialized)
+            {
+                clientConfig = new Couchbase.Configuration.Client.ClientConfiguration();
+                clientConfig.Servers.Clear();
+                clientConfig.Servers.Add(new Uri(server));
+                clientConfig.BucketConfigs.Clear();
+            }
+            else
+            {
+                clientConfig = ClusterHelper.Get().Configuration;
+            }
             clientConfig.BucketConfigs.Add(bucketName, new Couchbase.Configuration.Client.BucketConfiguration
             {
                 BucketName = this.bucketName,
@@ -103,7 +117,18 @@ namespace Orleans.Storage
                 throw new ArgumentException("You should suply a configuration to connect to CouchBase");
 
             this.bucketName = bucketName;
-            ClusterHelper.Initialize(clientConfig);
+            if (!OrleansCouchBaseStorage.IsInitialized)
+            {
+                ClusterHelper.Initialize(clientConfig);
+                OrleansCouchBaseStorage.IsInitialized = true;
+            }
+            else
+            {
+                foreach (var conf in clientConfig.BucketConfigs)
+                {
+                    ClusterHelper.Get().Configuration.BucketConfigs.Add(conf.Key,conf.Value);
+                }
+            }
             //cache the bucket.
             bucket = ClusterHelper.GetBucket(this.bucketName);
         }
