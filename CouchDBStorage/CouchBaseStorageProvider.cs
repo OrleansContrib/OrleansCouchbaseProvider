@@ -60,25 +60,17 @@ namespace Orleans.Storage
             //sanity check of config values
             if (string.IsNullOrWhiteSpace(bucketName)) throw new ArgumentException("BucketName property not set");
             if (string.IsNullOrWhiteSpace(server)) throw new ArgumentException("Server property not set");
-            Couchbase.Configuration.Client.ClientConfiguration clientConfig;
-            if (!OrleansCouchBaseStorage.IsInitialized)
-            {
-                clientConfig = new Couchbase.Configuration.Client.ClientConfiguration();
-                clientConfig.Servers.Clear();
-                clientConfig.Servers.Add(new Uri(server));
-                clientConfig.BucketConfigs.Clear();
-            }
-            else
-            {
-                clientConfig = ClusterHelper.Get().Configuration;
-            }
+
+            Couchbase.Configuration.Client.ClientConfiguration clientConfig = new Couchbase.Configuration.Client.ClientConfiguration();
+            clientConfig.Servers.Clear();
+            clientConfig.Servers.Add(new Uri(server));
+            clientConfig.BucketConfigs.Clear();
             clientConfig.BucketConfigs.Add(bucketName, new Couchbase.Configuration.Client.BucketConfiguration
             {
                 BucketName = this.bucketName,
                 Username = user,
                 Password = password
             });
-            
 
             DataManager = new CouchBaseDataManager(bucketName,clientConfig);
             return base.Init(name, providerRuntime, config);
@@ -93,12 +85,12 @@ namespace Orleans.Storage
         /// <summary>
         /// Name of the bucket that it works with.
         /// </summary>
-        private readonly string bucketName;
+        protected readonly string bucketName;
 
         /// <summary>
         /// The cached bucket reference
         /// </summary>
-        private IBucket bucket;
+        protected IBucket bucket;
 
         /// <summary>
         /// Constructor

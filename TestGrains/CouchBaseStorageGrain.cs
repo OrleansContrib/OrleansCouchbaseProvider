@@ -20,18 +20,16 @@ namespace TestGrains
 
     public class CouchBaseStorageGrain : Grain<StorageData>, ICouchBaseStorageGrain
     {
-        private StorageData state;
-
         public override Task OnActivateAsync()
         {
-            if (state == null)
-                state = new StorageData();
+            if (State == null)
+                State = new StorageData();
             return base.OnActivateAsync();
         }
 
         public Task<int> GetValue()
         {
-            return Task.FromResult(state.value);
+            return Task.FromResult(State.value);
         }
 
         public Task Read()
@@ -41,20 +39,20 @@ namespace TestGrains
 
         public Task Write(int value)
         {
-            state.value = value;
+            State.value = value;
             return WriteStateAsync();
         }
 
         public Task SetValue(int val)
         {
-            state.value = val;
+            State.value = val;
             return TaskDone.Done;
         }
 
         public async Task Delete()
         {
             await ClearStateAsync();
-            state.value = 0;
+            State.value = 0;
         }
     }
 }
