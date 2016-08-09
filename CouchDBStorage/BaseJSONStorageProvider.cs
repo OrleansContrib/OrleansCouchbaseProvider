@@ -113,7 +113,7 @@ namespace Orleans.Storage
             var entityData = ConvertToStorageFormat(grainState);
             //Get the ETag to send to the DB
             var eTag = grainState.ETag;
-            var returnedEtag = await DataManager.Write(grainTypeName, grainReference.ToKeyString(), entityData,eTag);
+            var returnedEtag = await DataManager.Write(grainTypeName, grainReference.ToKeyString(), entityData, eTag);
             //Set the new ETag on the state object.
             grainState.ETag = returnedEtag;
         }
@@ -131,7 +131,7 @@ namespace Orleans.Storage
 
             var grainTypeName = grainType.Split('.').Last();
             //When deleting we at least read the grain state at least once so we should have the ETag
-            DataManager.Delete(grainTypeName, grainReference.ToKeyString(),grainState.ETag);
+            DataManager.Delete(grainTypeName, grainReference.ToKeyString(), grainState.ETag);
             return TaskDone.Done;
         }
 

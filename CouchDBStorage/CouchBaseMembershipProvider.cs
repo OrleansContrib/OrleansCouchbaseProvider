@@ -11,12 +11,12 @@ using Couchbase.Core;
 using Couchbase.Linq;
 using Couchbase.Linq.Extensions;
 using Newtonsoft.Json;
+using Couchbase.N1QL;
 
 namespace Orleans.Storage
 {
     public class CouchBaseMembershipProvider : IMembershipTable
     {
-        private IBucket bucket;
         private MembershipDataManager manager;
 
         public Task DeleteMembershipTableEntries(string deploymentId)
@@ -36,7 +36,7 @@ namespace Orleans.Storage
                 Username = "",
                 Password = ""
             });
-            manager = new MembershipDataManager("membership",null);
+            manager = new MembershipDataManager("membership", clientConfig);
             return TaskDone.Done;
         }
 
@@ -62,7 +62,7 @@ namespace Orleans.Storage
 
         public Task<bool> UpdateRow(MembershipEntry entry, string etag, TableVersion tableVersion)
         {
-            return manager.UpdateRow(entry, tableVersion,etag);
+            return manager.UpdateRow(entry, tableVersion, etag);
         }
     }
 
@@ -70,7 +70,7 @@ namespace Orleans.Storage
     {
         public bool IsUpdatable { get { return true; } }
         private TimeSpan refreshRate;
-
+        private MembershipDataManager manager;
         public TimeSpan MaxStaleness
         {
             get
@@ -79,23 +79,27 @@ namespace Orleans.Storage
             }
         }
 
-        public async Task<IList<Uri>> GetGateways()
+        public Task<IList<Uri>> GetGateways()
         {
-            BucketContext b = new BucketContext(ClusterHelper.GetBucket("membership"));
-            var result = await b.Query<MembershipEntry>()
-                .Where(s => s.Status == SiloStatus.Active && s.ProxyPort != 0)
-                .ExecuteAsync();
-            var r = result.ToList().Select(x =>
-            {
-                x.SiloAddress.Endpoint.Port = x.ProxyPort;
-                return x.SiloAddress.ToGatewayUri();
-            })
-                .ToList();
-            return r;
+            return manager.GetGateWays();
         }
+
+
 
         public Task InitializeGatewayListProvider(ClientConfiguration clientConfiguration, TraceLogger traceLogger)
         {
+            Couchbase.Configuration.Client.ClientConfiguration clientConfig = new Couchbase.Configuration.Client.ClientConfiguration();
+            clientConfig.Servers.Clear();
+            clientConfig.Servers.Add(new Uri(clientConfiguration.DataConnectionString));
+            clientConfig.BucketConfigs.Clear();
+            clientConfig.BucketConfigs.Add("membership", new Couchbase.Configuration.Client.BucketConfiguration
+            {
+                BucketName = "membership",
+                Username = "",
+                Password = ""
+            });
+            manager = new MembershipDataManager("membership", null);
+
             refreshRate = clientConfiguration.GatewayListRefreshPeriod;
             return TaskDone.Done;
         }
@@ -107,16 +111,39 @@ namespace Orleans.Storage
 
         public MembershipDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration config) : base(bucketName, config)
         {
-            
         }
 
-        
-        public async Task<bool> InsertRow(MembershipEntry entry,TableVersion tableVersion)
+        #region GatewayProvider
+        public async Task<IList<Uri>> GetGateWays()
+        {
+            BucketContext b = new BucketContext(ClusterHelper.GetBucket("membership"));
+            var request = new QueryRequest("select membership.* from membership");
+            request.ScanConsistency(ScanConsistency.RequestPlus);
+            request.Metrics(false);
+            var result = await bucket.QueryAsync<CouchBaseSiloRegistration>(request);
+
+            var r = result.Rows.Select(x => CouchbaseSiloRegistrationmUtility.ToMembershipEntry(x).Item1).Select(x =>
+            {
+                //EXISTED IN CONSOLE MEMBERSHIP, am not sure why
+                //x.SiloAddress.Endpoint.Port = x.ProxyPort; 
+                return x.SiloAddress.ToGatewayUri();
+            })
+                .ToList();
+            return r;
+        }
+        #endregion
+
+
+
+        public async Task<bool> InsertRow(MembershipEntry entry, TableVersion tableVersion)
         {
             try
             {
-                string json = JsonConvert.SerializeObject(entry);
-                var result = await bucket.InsertAsync<string>(entry.SiloAddress.ToParsableString(), json);
+                var serializable = CouchbaseSiloRegistrationmUtility.FromMembershipEntry("", entry, "0");
+
+
+                var result = await bucket.InsertAsync<CouchBaseSiloRegistration>(entry.SiloAddress.ToParsableString(), serializable);
+
                 return result.Success;
             }
             catch
@@ -125,12 +152,12 @@ namespace Orleans.Storage
             }
         }
 
-        public async Task<bool> UpdateRow(MembershipEntry entry, TableVersion tableVersion,string eTag)
+        public async Task<bool> UpdateRow(MembershipEntry entry, TableVersion tableVersion, string eTag)
         {
             try
             {
-                string json = JsonConvert.SerializeObject(entry);
-                var result = await bucket.UpsertAsync<string>(entry.SiloAddress.ToParsableString(), json,ulong.Parse(eTag));
+                var serializable = CouchbaseSiloRegistrationmUtility.FromMembershipEntry("", entry, eTag);
+                var result = await  bucket.UpsertAsync<CouchBaseSiloRegistration>(entry.SiloAddress.ToParsableString(), serializable, ulong.Parse(eTag));
                 return result.Success;
             }
             catch
@@ -142,52 +169,53 @@ namespace Orleans.Storage
         public async Task<MembershipTableData> ReadAll()
         {
             BucketContext b = new BucketContext(bucket);
-            var exp = b.Query<MembershipEntry>().Select(x => Tuple.Create<MembershipEntry, string>(x, N1QlFunctions.Meta(bucket.Name).Cas.ToString()));
-            var result = await exp.ExecuteAsync();
+            var request = new QueryRequest("select *,meta(membership).cas from membership");
+            request.ScanConsistency(ScanConsistency.RequestPlus);
+            request.Metrics(false);
+            var exp = await bucket.QueryAsync<SiloRegistrationWithCas>(request);
+            
             List<Tuple<MembershipEntry, string>> entries = new List<Tuple<MembershipEntry, string>>();
-            foreach (var r in result)
+            foreach (var r in exp.Rows)
             {
-                entries.Add(Tuple.Create(r.Item1, r.Item2));
+                entries.Add(
+                    CouchbaseSiloRegistrationmUtility.ToMembershipEntry(r.Membership,r.Cas.ToString()));
             }
             return new MembershipTableData(entries, new TableVersion(0, "0"));
         }
 
+
         public async Task DeleteMembershipTableEntries(string deploymentId)
         {
-            BucketContext db = new BucketContext(bucket);
-            var results = await db.Query<MembershipEntry>().ExecuteAsync();
-            db.BeginChangeTracking();
-            var r = results.ToList();
-            r.Clear();
-            results = r.AsEnumerable();
-            db.EndChangeTracking();
+            QueryRequest deleteQuery = new QueryRequest("delete from membership where deploymentId = \"" + deploymentId+"\"");
+            deleteQuery.ScanConsistency(ScanConsistency.RequestPlus);
+            deleteQuery.Metrics(false);
+            var result = await bucket.QueryAsync<MembershipEntry>(deleteQuery);
+
         }
 
         public async Task<MembershipTableData> ReadRow(SiloAddress key)
         {
             BucketContext b = new BucketContext(bucket);
-            var exp = b.Query<MembershipEntry>().Where(x => x.SiloAddress.Endpoint == key.Endpoint && x.SiloAddress.Generation == key.Generation)
-                .Select(x => Tuple.Create<MembershipEntry, string>(x, N1QlFunctions.Meta(bucket.Name).Cas.ToString()));
-            var result = await exp.ExecuteAsync();
+            var request = new QueryRequest("select *,meta(membership).cas from membership where serializedAddress = \"" + key.Endpoint.ToString() + "@" + key.Generation+"\"");
+            request.Metrics(false);
+            request.ScanConsistency(ScanConsistency.RequestPlus);
+            var exp = await bucket.QueryAsync<SiloRegistrationWithCas>(request);
+
+
             List<Tuple<MembershipEntry, string>> entries = new List<Tuple<MembershipEntry, string>>();
-            foreach (var r in result)
+            foreach (var r in exp.Rows)
             {
-                entries.Add(Tuple.Create(r.Item1, r.Item2));
+                entries.Add(CouchbaseSiloRegistrationmUtility.ToMembershipEntry(r.Membership,r.Cas.ToString()));
             }
             return new MembershipTableData(entries, new TableVersion(0, "0"));
         }
 
         public async Task UpdateIAmAlive(MembershipEntry entry)
         {
-            var data = await bucket.GetAsync<string>(entry.SiloAddress.ToParsableString());
-            MembershipEntry readEntry=new MembershipEntry();
-            JsonConvert.PopulateObject(data.Value, readEntry);
-            readEntry.IAmAliveTime = entry.IAmAliveTime;
-            var json = JsonConvert.SerializeObject(readEntry);
-            await bucket.UpsertAsync<string>(readEntry.SiloAddress.ToParsableString(), json);
+            var data = await bucket.GetAsync<CouchBaseSiloRegistration>(entry.SiloAddress.ToParsableString());
+            data.Value.IAmAliveTime = entry.IAmAliveTime;
+            var address = CouchbaseSiloRegistrationmUtility.ToMembershipEntry(data.Value).Item1.SiloAddress;
+            await bucket.UpsertAsync<CouchBaseSiloRegistration>(address.ToParsableString(), data.Value);
         }
     }
-
-    
-
 }
