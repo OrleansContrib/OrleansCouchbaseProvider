@@ -38,7 +38,8 @@ namespace CouchBaseStorageTests
                 b.Remove("test_1");
                 b.Remove("test_2");
                 b.Remove("test_3");
-                ClusterHelper.Close();
+                manager.Dispose();
+                manager = null;
             }
         }
 
@@ -47,6 +48,7 @@ namespace CouchBaseStorageTests
         public CouchBaseDataManagerTests(CouchBaseFixture fixture)
         {
             manager = fixture.manager;
+            
         }
 
         [Fact]

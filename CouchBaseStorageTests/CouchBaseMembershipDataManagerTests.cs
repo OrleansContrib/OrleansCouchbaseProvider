@@ -46,6 +46,7 @@ namespace CouchBaseStorageTests
             throw new TimeoutException(String.Format("WithTimeout has timed out after {0}.", timeout));
         }
     }
+
     public class CouchBaseMembershipDataManagerTests :IDisposable, IClassFixture<CouchBaseMembershipDataManagerTests.CouchBaseMembershipFixture>
     {
         private static readonly string hostName = Dns.GetHostName();
@@ -66,10 +67,9 @@ namespace CouchBaseStorageTests
                     Username = "",
                     Password = ""
                 });
+                
                 manager = new MembershipDataManager("membership", clientConfig);
             }
-
-            
         }
 
         private MembershipDataManager membershipTable;
@@ -251,13 +251,7 @@ namespace CouchBaseStorageTests
 
                 Assert.NotNull(etagBefore);
 
-                //logger.Info("Calling UpdateRow with Entry = {0} correct eTag = {1} old version={2}", siloEntry,
-                //  etagBefore, tableVersion);
-
-                ok = await membershipTable.UpdateRow(siloEntry, tableVersion, etagBefore);
-
-                Assert.False(ok, $"row update should have failed - Table Data = {tableData}");
-
+                
                 tableData = await membershipTable.ReadAll();
 
                 tableVersion = tableData.Version;
@@ -283,12 +277,7 @@ namespace CouchBaseStorageTests
 
                 var etagAfter = tuple.Item2;
 
-                //logger.Info("Calling UpdateRow with Entry = {0} correct eTag = {1} old version={2}", siloEntry,
-                //  etagAfter, tableVersion);
-
-                ok = await membershipTable.UpdateRow(siloEntry, tableVersion, etagAfter);
-
-                Assert.False(ok, $"row update should have failed - Table Data = {tableData}");
+                
 
                 //var nextTableVersion = tableData.Version.Next();
 
@@ -341,7 +330,7 @@ namespace CouchBaseStorageTests
 
             tableData = await membershipTable.ReadAll();
             Assert.NotNull(tableData.Version);
-            Assert.Equal(20, tableData.Version.Version);
+            Assert.Equal(0, tableData.Version.Version); //since we don't support extended protocol.
             Assert.Equal(1, tableData.Members.Count);
         }
 

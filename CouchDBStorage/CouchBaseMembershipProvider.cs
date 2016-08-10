@@ -12,6 +12,7 @@ using Couchbase.Linq;
 using Couchbase.Linq.Extensions;
 using Newtonsoft.Json;
 using Couchbase.N1QL;
+using Newtonsoft.Json.Linq;
 
 namespace Orleans.Storage
 {
@@ -111,6 +112,7 @@ namespace Orleans.Storage
 
         public MembershipDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration config) : base(bucketName, config)
         {
+            bucket = ClusterHelper.GetBucket(bucketName);
         }
 
         #region GatewayProvider
@@ -169,16 +171,17 @@ namespace Orleans.Storage
         public async Task<MembershipTableData> ReadAll()
         {
             BucketContext b = new BucketContext(bucket);
-            var request = new QueryRequest("select *,meta(membership).cas from membership");
+            var request = new QueryRequest("select meta(membership).id from membership");
             request.ScanConsistency(ScanConsistency.RequestPlus);
             request.Metrics(false);
-            var exp = await bucket.QueryAsync<SiloRegistrationWithCas>(request);
+            var exp = await bucket.QueryAsync<JObject>(request);
             
             List<Tuple<MembershipEntry, string>> entries = new List<Tuple<MembershipEntry, string>>();
             foreach (var r in exp.Rows)
             {
+                var res = await bucket.GetAsync<CouchBaseSiloRegistration>(r["id"].ToString());
                 entries.Add(
-                    CouchbaseSiloRegistrationmUtility.ToMembershipEntry(r.Membership,r.Cas.ToString()));
+                    CouchbaseSiloRegistrationmUtility.ToMembershipEntry(res.Value,res.Cas.ToString()));
             }
             return new MembershipTableData(entries, new TableVersion(0, "0"));
         }
@@ -196,16 +199,17 @@ namespace Orleans.Storage
         public async Task<MembershipTableData> ReadRow(SiloAddress key)
         {
             BucketContext b = new BucketContext(bucket);
-            var request = new QueryRequest("select *,meta(membership).cas from membership where serializedAddress = \"" + key.Endpoint.ToString() + "@" + key.Generation+"\"");
+            var request = new QueryRequest("select meta(membership).id from membership where serializedAddress = \"" + key.Endpoint.ToString() + "@" + key.Generation+"\"");
             request.Metrics(false);
             request.ScanConsistency(ScanConsistency.RequestPlus);
-            var exp = await bucket.QueryAsync<SiloRegistrationWithCas>(request);
+            var exp = await bucket.QueryAsync<JObject>(request);
 
 
             List<Tuple<MembershipEntry, string>> entries = new List<Tuple<MembershipEntry, string>>();
             foreach (var r in exp.Rows)
             {
-                entries.Add(CouchbaseSiloRegistrationmUtility.ToMembershipEntry(r.Membership,r.Cas.ToString()));
+                var res = await bucket.GetAsync<CouchBaseSiloRegistration>(r["id"].ToString());
+                entries.Add(CouchbaseSiloRegistrationmUtility.ToMembershipEntry(res.Value,res.Cas.ToString()));
             }
             return new MembershipTableData(entries, new TableVersion(0, "0"));
         }
