@@ -119,12 +119,12 @@ namespace Orleans.Storage
         public async Task<IList<Uri>> GetGateWays()
         {
             BucketContext b = new BucketContext(ClusterHelper.GetBucket("membership"));
-            var request = new QueryRequest("select membership.* from membership");
-            request.ScanConsistency(ScanConsistency.RequestPlus);
-            request.Metrics(false);
-            var result = await bucket.QueryAsync<CouchBaseSiloRegistration>(request);
+            var getGateWaysQuery = new QueryRequest("select membership.* from membership");
+            getGateWaysQuery.ScanConsistency(ScanConsistency.RequestPlus);
+            getGateWaysQuery.Metrics(false);
+            var result = await bucket.QueryAsync<CouchBaseSiloRegistration>(getGateWaysQuery);
 
-            var r = result.Rows.Select(x => CouchbaseSiloRegistrationmUtility.ToMembershipEntry(x).Item1).Select(x =>
+            var r = result.Rows.Where(x=> x.Status == SiloStatus.Active && x.ProxyPort  != 0).Select(x => CouchbaseSiloRegistrationmUtility.ToMembershipEntry(x).Item1).Select(x =>
             {
                 //EXISTED IN CONSOLE MEMBERSHIP, am not sure why
                 //x.SiloAddress.Endpoint.Port = x.ProxyPort; 
@@ -171,17 +171,20 @@ namespace Orleans.Storage
         public async Task<MembershipTableData> ReadAll()
         {
             BucketContext b = new BucketContext(bucket);
-            var request = new QueryRequest("select meta(membership).id from membership");
-            request.ScanConsistency(ScanConsistency.RequestPlus);
-            request.Metrics(false);
-            var exp = await bucket.QueryAsync<JObject>(request);
+            var readAllQuery = new QueryRequest("select meta(membership).id from membership");
+            readAllQuery.ScanConsistency(ScanConsistency.RequestPlus);
+            readAllQuery.Metrics(false);
+            var ids = await bucket.QueryAsync<JObject>(readAllQuery);
+
+            var idStrings = ids.Rows.Select(x => x["id"].ToString()).ToArray();
+            var actuals = bucket.Get<CouchBaseSiloRegistration>(idStrings);//has no async version with batch reads
             
             List<Tuple<MembershipEntry, string>> entries = new List<Tuple<MembershipEntry, string>>();
-            foreach (var r in exp.Rows)
+            foreach (var actualRow in actuals.Values)
             {
-                var res = await bucket.GetAsync<CouchBaseSiloRegistration>(r["id"].ToString());
+                //var actualRow = await bucket.GetAsync<CouchBaseSiloRegistration>(r["id"].ToString());
                 entries.Add(
-                    CouchbaseSiloRegistrationmUtility.ToMembershipEntry(res.Value,res.Cas.ToString()));
+                    CouchbaseSiloRegistrationmUtility.ToMembershipEntry(actualRow.Value,actualRow.Cas.ToString()));
             }
             return new MembershipTableData(entries, new TableVersion(0, "0"));
         }
@@ -198,19 +201,9 @@ namespace Orleans.Storage
 
         public async Task<MembershipTableData> ReadRow(SiloAddress key)
         {
-            BucketContext b = new BucketContext(bucket);
-            var request = new QueryRequest("select meta(membership).id from membership where serializedAddress = \"" + key.Endpoint.ToString() + "@" + key.Generation+"\"");
-            request.Metrics(false);
-            request.ScanConsistency(ScanConsistency.RequestPlus);
-            var exp = await bucket.QueryAsync<JObject>(request);
-
-
+            var row = await bucket.GetAsync<CouchBaseSiloRegistration>(key.ToParsableString());
             List<Tuple<MembershipEntry, string>> entries = new List<Tuple<MembershipEntry, string>>();
-            foreach (var r in exp.Rows)
-            {
-                var res = await bucket.GetAsync<CouchBaseSiloRegistration>(r["id"].ToString());
-                entries.Add(CouchbaseSiloRegistrationmUtility.ToMembershipEntry(res.Value,res.Cas.ToString()));
-            }
+            entries.Add(CouchbaseSiloRegistrationmUtility.ToMembershipEntry(row.Value, row.Cas.ToString()));
             return new MembershipTableData(entries, new TableVersion(0, "0"));
         }
 
