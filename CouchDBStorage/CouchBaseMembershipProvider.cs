@@ -106,13 +106,39 @@ namespace Orleans.Storage
         }
     }
 
-    public class MembershipDataManager : CouchBaseDataManager
+    public class MembershipDataManager : IDisposable
     {
         private readonly TableVersion tableVersion = new TableVersion(0, "0");
+        private IBucket bucket;
+        private string bucketName;
 
-        public MembershipDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration config) : base(bucketName, config)
+        public MembershipDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig)
         {
-            bucket = ClusterHelper.GetBucket(bucketName);
+
+            //Bucket name should not be empty
+            //Keep in mind that you should create the buckets before being able to use them either
+            //using the commandline tool or the web console
+            if (string.IsNullOrWhiteSpace(bucketName))
+                throw new ArgumentException("bucketName can not be null or empty");
+            //config should not be null either
+            if (clientConfig == null)
+                throw new ArgumentException("You should suply a configuration to connect to CouchBase");
+
+            this.bucketName = bucketName;
+            if (!OrleansCouchBaseStorage.IsInitialized)
+            {
+                ClusterHelper.Initialize(clientConfig);
+                OrleansCouchBaseStorage.IsInitialized = true;
+            }
+            else
+            {
+                foreach (var conf in clientConfig.BucketConfigs)
+                {
+                    ClusterHelper.Get().Configuration.BucketConfigs.Add(conf.Key, conf.Value);
+                }
+            }
+            //cache the bucket.
+            bucket = ClusterHelper.GetBucket(this.bucketName);
         }
 
         #region GatewayProvider
@@ -124,7 +150,7 @@ namespace Orleans.Storage
             getGateWaysQuery.Metrics(false);
             var result = await bucket.QueryAsync<CouchBaseSiloRegistration>(getGateWaysQuery);
 
-            var r = result.Rows.Where(x=> x.Status == SiloStatus.Active && x.ProxyPort  != 0).Select(x => CouchbaseSiloRegistrationmUtility.ToMembershipEntry(x).Item1).Select(x =>
+            var r = result.Rows.Where(x => x.Status == SiloStatus.Active && x.ProxyPort != 0).Select(x => CouchbaseSiloRegistrationmUtility.ToMembershipEntry(x).Item1).Select(x =>
             {
                 //EXISTED IN CONSOLE MEMBERSHIP, am not sure why
                 //x.SiloAddress.Endpoint.Port = x.ProxyPort; 
@@ -142,13 +168,10 @@ namespace Orleans.Storage
             try
             {
                 var serializable = CouchbaseSiloRegistrationmUtility.FromMembershipEntry("", entry, "0");
-
-
-                var result = await bucket.InsertAsync<CouchBaseSiloRegistration>(entry.SiloAddress.ToParsableString(), serializable);
-
+                var result = await bucket.InsertAsync<CouchBaseSiloRegistration>(entry.SiloAddress.ToParsableString(), serializable).ConfigureAwait(false);
                 return result.Success;
             }
-            catch
+            catch (Exception x)
             {
                 return false;
             }
@@ -159,10 +182,10 @@ namespace Orleans.Storage
             try
             {
                 var serializable = CouchbaseSiloRegistrationmUtility.FromMembershipEntry("", entry, eTag);
-                var result = await  bucket.UpsertAsync<CouchBaseSiloRegistration>(entry.SiloAddress.ToParsableString(), serializable, ulong.Parse(eTag));
+                var result = await bucket.UpsertAsync<CouchBaseSiloRegistration>(entry.SiloAddress.ToParsableString(), serializable, ulong.Parse(eTag)).ConfigureAwait(false);
                 return result.Success;
             }
-            catch
+            catch (Exception x)
             {
                 return false;
             }
@@ -174,17 +197,16 @@ namespace Orleans.Storage
             var readAllQuery = new QueryRequest("select meta(membership).id from membership");
             readAllQuery.ScanConsistency(ScanConsistency.RequestPlus);
             readAllQuery.Metrics(false);
-            var ids = await bucket.QueryAsync<JObject>(readAllQuery);
+            var ids = await bucket.QueryAsync<JObject>(readAllQuery).ConfigureAwait(false);
 
             var idStrings = ids.Rows.Select(x => x["id"].ToString()).ToArray();
             var actuals = bucket.Get<CouchBaseSiloRegistration>(idStrings);//has no async version with batch reads
-            
             List<Tuple<MembershipEntry, string>> entries = new List<Tuple<MembershipEntry, string>>();
             foreach (var actualRow in actuals.Values)
             {
                 //var actualRow = await bucket.GetAsync<CouchBaseSiloRegistration>(r["id"].ToString());
                 entries.Add(
-                    CouchbaseSiloRegistrationmUtility.ToMembershipEntry(actualRow.Value,actualRow.Cas.ToString()));
+                    CouchbaseSiloRegistrationmUtility.ToMembershipEntry(actualRow.Value, actualRow.Cas.ToString()));
             }
             return new MembershipTableData(entries, new TableVersion(0, "0"));
         }
@@ -192,18 +214,23 @@ namespace Orleans.Storage
 
         public async Task DeleteMembershipTableEntries(string deploymentId)
         {
-            QueryRequest deleteQuery = new QueryRequest("delete from membership where deploymentId = \"" + deploymentId+"\"");
+            
+            QueryRequest deleteQuery = new QueryRequest("delete from membership where deploymentId = \"" + deploymentId + "\"");
             deleteQuery.ScanConsistency(ScanConsistency.RequestPlus);
             deleteQuery.Metrics(false);
-            var result = await bucket.QueryAsync<MembershipEntry>(deleteQuery);
+            var result = await bucket.QueryAsync<MembershipEntry>(deleteQuery).ConfigureAwait(false);
 
         }
 
         public async Task<MembershipTableData> ReadRow(SiloAddress key)
         {
-            var row = await bucket.GetAsync<CouchBaseSiloRegistration>(key.ToParsableString());
             List<Tuple<MembershipEntry, string>> entries = new List<Tuple<MembershipEntry, string>>();
-            entries.Add(CouchbaseSiloRegistrationmUtility.ToMembershipEntry(row.Value, row.Cas.ToString()));
+            bool exists = await bucket.ExistsAsync(key.ToParsableString());
+            if (exists)
+            {
+                var row = await bucket.GetAsync<CouchBaseSiloRegistration>(key.ToParsableString()).ConfigureAwait(false);
+                entries.Add(CouchbaseSiloRegistrationmUtility.ToMembershipEntry(row.Value, row.Cas.ToString()));
+            }
             return new MembershipTableData(entries, new TableVersion(0, "0"));
         }
 
@@ -212,7 +239,18 @@ namespace Orleans.Storage
             var data = await bucket.GetAsync<CouchBaseSiloRegistration>(entry.SiloAddress.ToParsableString());
             data.Value.IAmAliveTime = entry.IAmAliveTime;
             var address = CouchbaseSiloRegistrationmUtility.ToMembershipEntry(data.Value).Item1.SiloAddress;
-            await bucket.UpsertAsync<CouchBaseSiloRegistration>(address.ToParsableString(), data.Value);
+            await bucket.UpsertAsync<CouchBaseSiloRegistration>(address.ToParsableString(), data.Value).ConfigureAwait(false);
         }
+
+
+        public void Dispose()
+        {
+            bucket.Dispose();
+            bucket = null;
+            //Closes the DB connection
+            ClusterHelper.Close();
+            OrleansCouchBaseStorage.IsInitialized = false;
+        }
+
     }
 }

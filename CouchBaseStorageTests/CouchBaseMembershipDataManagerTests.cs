@@ -51,7 +51,7 @@ namespace CouchBaseStorageTests
     {
         private static readonly string hostName = Dns.GetHostName();
 
-        public class CouchBaseMembershipFixture
+        public class CouchBaseMembershipFixture:IDisposable
         {
             public MembershipDataManager manager;
 
@@ -69,6 +69,11 @@ namespace CouchBaseStorageTests
                 });
                 
                 manager = new MembershipDataManager("membership", clientConfig);
+            }
+
+            public void Dispose()
+            {
+                manager.Dispose();
             }
         }
 
