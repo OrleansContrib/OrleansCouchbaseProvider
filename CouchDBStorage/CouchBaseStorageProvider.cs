@@ -50,7 +50,7 @@ namespace Orleans.Storage
         public override Task Init(string name, IProviderRuntime providerRuntime, IProviderConfiguration config)
         {
             this.Name = name;
-            
+
             //Read config
             this.bucketName = config.Properties["BucketName"];
             var user = config.Properties["UserName"];
@@ -72,7 +72,7 @@ namespace Orleans.Storage
                 Password = password
             });
 
-            DataManager = new CouchBaseDataManager(bucketName,clientConfig);
+            DataManager = new CouchBaseDataManager(bucketName, clientConfig);
             return base.Init(name, providerRuntime, config);
         }
     }
@@ -97,7 +97,7 @@ namespace Orleans.Storage
         /// </summary>
         /// <param name="bucketName">Name of the bucket that this manager should operate on.</param>
         /// <param name="clientConfig">Configuration object for the database client</param>
-        public CouchBaseDataManager(string bucketName,Couchbase.Configuration.Client.ClientConfiguration clientConfig)
+        public CouchBaseDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig)
         {
             //Bucket name should not be empty
             //Keep in mind that you should create the buckets before being able to use them either
@@ -118,7 +118,7 @@ namespace Orleans.Storage
             {
                 foreach (var conf in clientConfig.BucketConfigs)
                 {
-                    ClusterHelper.Get().Configuration.BucketConfigs.Add(conf.Key,conf.Value);
+                    ClusterHelper.Get().Configuration.BucketConfigs.Add(conf.Key, conf.Value);
                 }
             }
             //cache the bucket.
@@ -148,13 +148,15 @@ namespace Orleans.Storage
         public async Task<Tuple<string, string>> Read(string collectionName, string key)
         {
             var docID = GetDocumentID(collectionName, key);
-            bool exists = await bucket.ExistsAsync(docID);
-            if (!exists)//IF there is nothing to read we simply return a null value
-                return Tuple.Create<string, string>(null, "");
+
             //If there is a value we read it and consider the CAS as ETag as well and return
             //both as a tuple
             var result = await bucket.GetAsync<string>(docID);
-            return Tuple.Create<string, string>(result.Value, result.Cas.ToString());
+            if (result.Success)
+                return Tuple.Create<string, string>(result.Value, result.Cas.ToString());
+            if (!result.Success && result.Status == Couchbase.IO.ResponseStatus.KeyNotFound) //not found
+                return Tuple.Create<string, string>(null, "");
+            throw result.Exception;
         }
 
         /// <summary>
@@ -167,26 +169,28 @@ namespace Orleans.Storage
         public async Task<string> Write(string collectionName, string key, string entityData, string eTag)
         {
             var docID = GetDocumentID(collectionName, key);
-            var exists = await bucket.ExistsAsync(docID);
-            //If thre is  already a doc then we absolutely have an ETag (CAS) available to us
-            //which we obtained at read time
-            //So call with ETag
-            //We can not just our own ETag to see if we should have it or not since someone
-            //else might write something while we are doing something else between our grain
-            //construction and when we write ourselve on the DB
-            if (exists)
+            ulong realETag;
+            if (ulong.TryParse(eTag, out realETag))
             {
-                var r = await bucket.UpsertAsync<string>(docID, entityData, ulong.Parse(eTag));
+                var r = await bucket.UpsertAsync<string>(docID, entityData, realETag);
                 if (!r.Success)
-                    throw new Orleans.Storage.InconsistentStateException(r.Message,eTag,r.Cas.ToString());
-                
+                {
+                    throw new Orleans.Storage.InconsistentStateException(r.Status.ToString(), eTag, r.Cas.ToString());
+                }
+
                 return r.Cas.ToString();
             }
             else
             {
                 var r = await bucket.InsertAsync<string>(docID, entityData);
-                if (!r.Success)
-                    throw new System.Exception(r.Message);
+                
+                //check if key exist and we don't have the CAS
+                if (!r.Success && r.Status == Couchbase.IO.ResponseStatus.KeyExists)
+                {
+                    throw new Orleans.Storage.InconsistentStateException(r.Status.ToString(), eTag, r.Cas.ToString());
+                }
+                else if (!r.Success)
+                    throw new System.Exception(r.Status.ToString());
                 return r.Cas.ToString();
             }
         }
