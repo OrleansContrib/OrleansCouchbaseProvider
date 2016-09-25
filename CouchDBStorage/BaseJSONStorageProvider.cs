@@ -1,15 +1,10 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
-using Orleans;
+using Newtonsoft.Json.Linq;
 using Orleans.Runtime;
-using Orleans.Storage;
 using Orleans.Providers;
-using Couchbase;
-using Couchbase.Configuration;
 
 namespace Orleans.Storage
 {
@@ -146,7 +141,9 @@ namespace Orleans.Storage
         /// </remarks>
         protected static string ConvertToStorageFormat(IGrainState grainState)
         {
-            return JsonConvert.SerializeObject(grainState.State, SerializerSettings);
+            var jo = JObject.FromObject(grainState.State);
+            jo.Add("_type", grainState.State.GetType().ToString());
+            return jo.ToString();
         }
 
         /// <summary>
