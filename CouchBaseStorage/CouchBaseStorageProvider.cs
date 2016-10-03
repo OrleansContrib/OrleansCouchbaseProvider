@@ -118,7 +118,8 @@ namespace Orleans.Storage
             {
                 foreach (var conf in clientConfig.BucketConfigs)
                 {
-                    ClusterHelper.Get().Configuration.BucketConfigs.Add(conf.Key, conf.Value);
+                    if (!ClusterHelper.Get().Configuration.BucketConfigs.ContainsKey(conf.Key))
+                        ClusterHelper.Get().Configuration.BucketConfigs.Add(conf.Key, conf.Value);
                 }
             }
             //cache the bucket.
@@ -183,7 +184,7 @@ namespace Orleans.Storage
             else
             {
                 var r = await bucket.InsertAsync<string>(docID, entityData);
-                
+
                 //check if key exist and we don't have the CAS
                 if (!r.Success && r.Status == Couchbase.IO.ResponseStatus.KeyExists)
                 {
