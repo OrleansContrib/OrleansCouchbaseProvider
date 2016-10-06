@@ -142,7 +142,7 @@ namespace Orleans.Storage
         protected static string ConvertToStorageFormat(IGrainState grainState)
         {
             var jo = JObject.FromObject(grainState.State);
-            jo.Add("_type", grainState.State.GetType().ToString());
+            jo.Add("type", grainState.State.GetType().ToString());
             return jo.ToString();
         }
 
