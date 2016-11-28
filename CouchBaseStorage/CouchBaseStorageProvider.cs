@@ -118,8 +118,11 @@ namespace Orleans.Storage
             {
                 foreach (var conf in clientConfig.BucketConfigs)
                 {
-                    if (!ClusterHelper.Get().Configuration.BucketConfigs.ContainsKey(conf.Key))
-                        ClusterHelper.Get().Configuration.BucketConfigs.Add(conf.Key, conf.Value);
+                    if (ClusterHelper.Get().Configuration.BucketConfigs.ContainsKey(conf.Key))
+                    {
+                        ClusterHelper.Get().Configuration.BucketConfigs.Remove(conf.Key);
+                    }
+                    ClusterHelper.Get().Configuration.BucketConfigs.Add(conf.Key, conf.Value);
                 }
             }
             //cache the bucket.

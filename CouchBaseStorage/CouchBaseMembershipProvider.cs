@@ -106,38 +106,14 @@ namespace Orleans.Storage
         }
     }
 
-    public class MembershipDataManager : IDisposable
+    public class MembershipDataManager : CouchBaseDataManager
     {
         private readonly TableVersion tableVersion = new TableVersion(0, "0");
-        private IBucket bucket;
-        private string bucketName;
 
-        public MembershipDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig)
+
+        public MembershipDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig) : base(bucketName, clientConfig)
         {
-            //Bucket name should not be empty
-            //Keep in mind that you should create the buckets before being able to use them either
-            //using the commandline tool or the web console
-            if (string.IsNullOrWhiteSpace(bucketName))
-                throw new ArgumentException("bucketName can not be null or empty");
-            //config should not be null either
-            if (clientConfig == null)
-                throw new ArgumentException("You should suply a configuration to connect to CouchBase");
 
-            this.bucketName = bucketName;
-            if (!OrleansCouchBaseStorage.IsInitialized)
-            {
-                ClusterHelper.Initialize(clientConfig);
-                OrleansCouchBaseStorage.IsInitialized = true;
-            }
-            else
-            {
-                foreach (var conf in clientConfig.BucketConfigs)
-                {
-                    ClusterHelper.Get().Configuration.BucketConfigs.Add(conf.Key, conf.Value);
-                }
-            }
-            //cache the bucket.
-            bucket = ClusterHelper.GetBucket(this.bucketName);
         }
 
         #region GatewayProvider
@@ -199,7 +175,7 @@ namespace Orleans.Storage
             var ids = await bucket.QueryAsync<JObject>(readAllQuery).ConfigureAwait(false);
 
             var idStrings = ids.Rows.Select(x => x["id"].ToString()).ToArray();
-            IDictionary<string, IOperationResult<CouchBaseSiloRegistration>>  actuals = await Task.Run
+            IDictionary<string, IOperationResult<CouchBaseSiloRegistration>> actuals = await Task.Run
                 (() => bucket.Get<CouchBaseSiloRegistration>(idStrings));//has no async version with batch reads
             List<Tuple<MembershipEntry, string>> entries = new List<Tuple<MembershipEntry, string>>();
             foreach (var actualRow in actuals.Values)
@@ -240,16 +216,5 @@ namespace Orleans.Storage
             var address = CouchbaseSiloRegistrationmUtility.ToMembershipEntry(data.Value).Item1.SiloAddress;
             await bucket.UpsertAsync<CouchBaseSiloRegistration>(address.ToParsableString(), data.Value).ConfigureAwait(false);
         }
-
-
-        public void Dispose()
-        {
-            bucket.Dispose();
-            bucket = null;
-            //Closes the DB connection
-            ClusterHelper.Close();
-            OrleansCouchBaseStorage.IsInitialized = false;
-        }
-
     }
 }
