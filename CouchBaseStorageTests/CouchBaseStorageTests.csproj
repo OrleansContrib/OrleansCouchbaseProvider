@@ -112,9 +112,9 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\CouchBaseStorage\CouchBaseStorage.csproj">
+    <ProjectReference Include="..\CouchBaseStorage\CouchBaseProviders.csproj">
       <Project>{f6ff0615-09b1-4e59-9c65-cc16ba0b379b}</Project>
-      <Name>CouchBaseStorage</Name>
+      <Name>CouchBaseProviders</Name>
     </ProjectReference>
     <ProjectReference Include="..\TestGrains\TestGrains.csproj">
       <Project>{94ce7cc3-a0f9-41dc-aa26-c70339786718}</Project>

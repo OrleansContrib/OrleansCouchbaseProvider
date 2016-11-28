@@ -7,8 +7,8 @@
     <ProjectGuid>{F6FF0615-09B1-4E59-9C65-CC16BA0B379B}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>CouchDBStorage</RootNamespace>
-    <AssemblyName>CouchDBStorage</AssemblyName>
+    <RootNamespace>CouchBaseProviders</RootNamespace>
+    <AssemblyName>CouchBaseProviders</AssemblyName>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>

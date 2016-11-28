@@ -199,13 +199,14 @@ namespace Orleans.Storage
             }
         }
 
-        public void Dispose()
+		public void Dispose()
         {
-            bucket.Dispose();
+			bucket.Dispose();
             bucket = null;
             //Closes the DB connection
             ClusterHelper.Close();
             OrleansCouchBaseStorage.IsInitialized = false;
+			GC.SuppressFinalize(this);
         }
 
 
