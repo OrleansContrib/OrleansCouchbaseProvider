@@ -46,6 +46,13 @@ The membership provider can be used like this
             }
 ```
 
+## Bucket configuration
+
+For using the membership provider, you need a bucket named membership and you can give it minimum RAM and storage because it will store a little amount of data.
+
+For your own usage, use one bucket only as couchbase advices itself and don't go over 10 buckets. You don't need much RAM for your own buckets as well since Orleans will keep the state of hot actors in memory itself.
+
+
 ## Do you want to help?
 
 Take a look at issues anhd also test it and report issues. We've tested this on CouchBase Community 4.1.
