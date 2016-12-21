@@ -351,7 +351,7 @@ namespace CouchBaseStorageTests
             {
                 SiloAddress = siloAddress,
                 HostName = hostName,
-                InstanceName = "TestSiloName",
+                SiloName="testSilo",
                 Status = SiloStatus.Joining,
                 ProxyPort = siloAddress.Endpoint.Port,
                 StartTime = GetUtcNowWithSecondsResolution(),
