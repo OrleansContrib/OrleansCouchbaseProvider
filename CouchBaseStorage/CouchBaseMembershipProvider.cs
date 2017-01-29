@@ -25,12 +25,9 @@ namespace Orleans.Storage
             return manager.DeleteMembershipTableEntries(deploymentId);
         }
 
-        public Task InitializeMembershipTable(GlobalConfiguration globalConfiguration, bool tryInitTableVersion, Logger logger)
-        {
-            return TaskDone.Done;
-        }
+        
 
-        public Task InitializeMembershipTable(GlobalConfiguration globalConfiguration, bool tryInitTableVersion, TraceLogger traceLogger)
+        public Task InitializeMembershipTable(GlobalConfiguration globalConfiguration, bool tryInitTableVersion, Logger traceLogger)
         {
             Couchbase.Configuration.Client.ClientConfiguration clientConfig = new Couchbase.Configuration.Client.ClientConfiguration();
             clientConfig.Servers.Clear();
@@ -92,7 +89,7 @@ namespace Orleans.Storage
 
 
 
-        public Task InitializeGatewayListProvider(ClientConfiguration clientConfiguration, TraceLogger traceLogger)
+        public Task InitializeGatewayListProvider(ClientConfiguration clientConfiguration, Logger traceLogger)
         {
             Couchbase.Configuration.Client.ClientConfiguration clientConfig = new Couchbase.Configuration.Client.ClientConfiguration();
             clientConfig.Servers.Clear();
@@ -107,11 +104,6 @@ namespace Orleans.Storage
             manager = new MembershipDataManager("membership", null);
 
             refreshRate = clientConfiguration.GatewayListRefreshPeriod;
-            return TaskDone.Done;
-        }
-
-        public Task InitializeGatewayListProvider(ClientConfiguration clientConfiguration, Logger logger)
-        {
             return TaskDone.Done;
         }
     }
