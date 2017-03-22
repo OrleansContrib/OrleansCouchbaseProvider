@@ -15,7 +15,7 @@
         /// </summary>
         /// <param name="referenceTag"></param>
         /// <returns></returns>
-        Task ReferenceMe(string referenceTag);
+        Task SetReferenceState(string referenceTag);
 
         Task<string> GetReferenceTag();
 
@@ -44,7 +44,7 @@
         }
 
         /// <inheritdoc />
-        public async Task ReferenceMe(string referenceTag)
+        public async Task SetReferenceState(string referenceTag)
         {
             State.ReferenceTag = referenceTag;
             State.ReferencedAt = DateTime.UtcNow;

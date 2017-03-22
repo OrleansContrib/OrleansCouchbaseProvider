@@ -55,7 +55,7 @@ namespace TestGrains
             //  Reference another grain to include into state persistence
             var referencedGrainId = this.GetPrimaryKey();
             State.StoredReferenceGrain = this.GrainFactory.GetGrain<IStoredReferenceGrain>(referencedGrainId);
-            State.StoredReferenceGrain.ReferenceMe(referenceTag);
+            State.StoredReferenceGrain.SetReferenceState(referenceTag);
 
             return TaskDone.Done;
         }
