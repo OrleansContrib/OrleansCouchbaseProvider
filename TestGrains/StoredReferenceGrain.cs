@@ -6,7 +6,7 @@
     using Orleans;
 
     /// <summary>
-    /// Contract for a referenced grain.
+    /// Referenced grain.
     /// </summary>
     public interface IStoredReferenceGrain : IGrainWithGuidKey
     {

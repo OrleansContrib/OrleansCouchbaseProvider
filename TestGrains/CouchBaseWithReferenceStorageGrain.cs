@@ -6,7 +6,7 @@ namespace TestGrains
     using System;
 
     /// <summary>
-    /// Contract for a grain that references another grain, also persisting other grain's reference into this grain's state.
+    /// A grain that references another grain, also persisting other grain's reference into this grain's state.
     /// </summary>
     public interface ICouchBaseWithGrainReferenceStorageGrain : IGrainWithGuidKey
     {
@@ -50,6 +50,7 @@ namespace TestGrains
             await ReadStateAsync();
         }
 
+        /// <inheritdoc />
         public Task ReferenceOtherGrain(string referenceTag)
         {
             //  Reference another grain to include into state persistence
