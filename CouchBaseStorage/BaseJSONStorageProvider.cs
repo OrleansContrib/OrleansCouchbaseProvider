@@ -1,10 +1,12 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+
 using Orleans.Runtime;
 using Orleans.Providers;
+using Orleans.Serialization;
 
 namespace Orleans.Storage
 {
@@ -13,7 +15,7 @@ namespace Orleans.Storage
     /// </summary>
     public abstract class BaseJSONStorageProvider : IStorageProvider
     {
-        private static readonly JsonSerializerSettings SerializerSettings = new JsonSerializerSettings();
+        private JsonSerializerSettings jsonSerializerSettings;
 
         /// <summary>
         /// Logger object
@@ -51,6 +53,7 @@ namespace Orleans.Storage
         public virtual Task Init(string name, IProviderRuntime providerRuntime, IProviderConfiguration config)
         {
             this.Name = name;
+            this.jsonSerializerSettings = OrleansJsonSerializer.GetDefaultSerializerSettings();
             Log = providerRuntime.GetLogger(this.GetType().FullName);
             return TaskDone.Done;
         }
@@ -139,11 +142,10 @@ namespace Orleans.Storage
         /// JSON.NET's website
         /// for more on the JSON serializer.
         /// </remarks>
-        protected static string ConvertToStorageFormat(IGrainState grainState)
+        protected string ConvertToStorageFormat(IGrainState grainState)
         {
-            var jo = JObject.FromObject(grainState.State);
-            jo.Add("type", grainState.State.GetType().ToString());
-            return jo.ToString();
+            var jsonState = JsonConvert.SerializeObject(grainState.State, this.jsonSerializerSettings);
+            return jsonState;
         }
 
         /// <summary>
@@ -151,9 +153,9 @@ namespace Orleans.Storage
         /// </summary>
         /// <param name="grainState">Grain state to be populated for storage.</param>
         /// <param name="entityData">JSON storage format representaiton of the grain state.</param>
-        protected static void ConvertFromStorageFormat(IGrainState grainState, string entityData)
+        protected void ConvertFromStorageFormat(IGrainState grainState, string entityData)
         {
-            JsonConvert.PopulateObject(entityData, grainState.State);
+            grainState.State = JsonConvert.DeserializeObject(entityData, grainState.State.GetType(), this.jsonSerializerSettings);
         }
     }
 }

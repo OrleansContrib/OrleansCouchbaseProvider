@@ -69,7 +69,49 @@ namespace CouchBaseStorageTests
             Assert.Equal(3, await grain.GetValue());
             await grain.Delete();
             Assert.Equal(0, await grain.GetValue());
+        }
 
+        [Fact]
+        public async Task StoresGrainStateWithReferencedGrainTest()
+        {
+            var grainId = Guid.NewGuid();
+            var grain = this.host.GrainFactory.GetGrain<ICouchBaseWithGrainReferenceStorageGrain>(grainId);
+
+            // Request grain to reference another grain
+            var referenceTag = $"Referenced by grain {grainId}";
+            await grain.ReferenceOtherGrain(referenceTag);
+
+            // Verify referenced grain values
+            var retrievedReferenceTag = await grain.GetReferencedTag();
+            Assert.Equal(referenceTag, retrievedReferenceTag);
+            var retrievedReferencedAt = await grain.GetReferencedAt();
+            Assert.NotEqual(default(DateTime), retrievedReferencedAt);
+
+            // Write state
+            await grain.Write();
+
+            // Restart all test silos
+            var silos = new[] { this.host.Primary }.Union(this.host.SecondarySilos).ToList();
+            foreach (var siloHandle in silos)
+            {
+                this.host.RestartSilo(siloHandle);
+            }
+
+            // Re-initialize client
+            host.KillClient();
+            host.InitializeClient();
+
+            // Revive persisted grain
+            var grainPostRestart = this.host.GrainFactory.GetGrain<ICouchBaseWithGrainReferenceStorageGrain>(grainId);
+
+            // Force read persisted state
+            await grainPostRestart.Read();
+
+            // Verify persisted state post restart
+            var retrievedReferenceTagPostWrite = await grainPostRestart.GetReferencedTag();
+            Assert.Equal(referenceTag, retrievedReferenceTagPostWrite);
+            var retrievedReferencedAtPostWrite = await grainPostRestart.GetReferencedAt();
+            Assert.Equal(retrievedReferencedAt, retrievedReferencedAtPostWrite);
         }
     }
 
