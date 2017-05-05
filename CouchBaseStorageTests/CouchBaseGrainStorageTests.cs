@@ -23,7 +23,7 @@ namespace CouchBaseStorageTests
                 c.Globals.RegisterStorageProvider<Orleans.Storage.OrleansCouchBaseStorage>("Default",
                     new Dictionary<string, string>()
                             {
-                                { "Server","http://localhost:8091" },
+                                { "Servers","http://localhost:8091" },
                                 { "UserName","" },
                                 { "Password","" },
                                 { "BucketName","default" }
