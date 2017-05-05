@@ -18,7 +18,7 @@ deploy:
 - provider: NuGet
   server: https://www.myget.org/F/couchbase-orleans-provider/api/v2/package
   api_key:
-    secure: Cov0c7H0EvTAcF+4heoatFrtbFVvnz9PR0bTNbDKVTjcN47Vy1k2C3Siep6NsdA7
+    secure: GDE7HrkEv1CxfY5wdjC5lbfMRdfF8soxspbI9NUbGIy4cYOs/+uZqPxzyn9rOUoO
   skip_symbols: true
   artifact: /.*\.nupkg/
   on:
