@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>$id$</id>
+    <version>$version$</version>
+    <title>$title$</title>
+    <authors>Ashkan Saeedi Mazdeh</authors>
+    <owners>OrleansContrib</owners>
+    <licenseUrl>https://opensource.org/licenses/MIT</licenseUrl>
+    <projectUrl>https://github.com/OrleansContrib/OrleansCouchbaseProvider</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Orleans grain and memebership storage provider for Couchbase.</description>
+    <copyright>Copyright 2017</copyright>
+    <tags>orleans storage provider couchbase</tags>
+  </metadata>
+</package>

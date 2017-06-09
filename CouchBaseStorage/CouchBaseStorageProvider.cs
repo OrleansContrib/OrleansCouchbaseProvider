@@ -63,7 +63,11 @@ namespace Orleans.Storage
 
             Couchbase.Configuration.Client.ClientConfiguration clientConfig = new Couchbase.Configuration.Client.ClientConfiguration();
             clientConfig.Servers.Clear();
-            clientConfig.Servers.Add(new Uri(server));
+            foreach (var s in server.Split(new[] {','}, StringSplitOptions.RemoveEmptyEntries))
+            {
+                clientConfig.Servers.Add(new Uri(s));
+            }
+
             clientConfig.BucketConfigs.Clear();
             clientConfig.BucketConfigs.Add(bucketName, new Couchbase.Configuration.Client.BucketConfiguration
             {
