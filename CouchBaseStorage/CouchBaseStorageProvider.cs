@@ -1,12 +1,9 @@
 using System;
-using System.IO;
 using System.Threading.Tasks;
-using Orleans;
 using Orleans.Providers;
 using Couchbase;
 using Couchbase.Core;
-using Orleans.Runtime;
-using Orleans.Runtime.Configuration;
+using CouchBaseProviders.Configuration;
 
 namespace Orleans.Storage
 {
@@ -29,17 +26,7 @@ namespace Orleans.Storage
         /// buckets.
         /// </summary>
         internal static bool IsInitialized;
-
-        /// <summary>
-        /// Name of the bucket to store the data.
-        /// </summary>
-        /// <remarks>
-        /// If you need to store data in different buckets simply register multiple CouchBase
-        /// storage providers and suply different bucket names with their respective UserName
-        /// and Password if applicable.
-        /// </remarks>
-        public string bucketName { get; set; }
-
+        
         /// <summary>
         /// Initializes the provider during silo startup.
         /// </summary>
@@ -51,32 +38,10 @@ namespace Orleans.Storage
         {
             this.Name = name;
 
-            //Read config
-            this.bucketName = config.Properties["BucketName"];
-            var user = config.Properties["UserName"];
-            var password = config.Properties["Password"];
-            var server = config.Properties["Server"];
+            string storageBucketName = null;
+            var clientConfiguration = config.Properties.ReadCouchbaseConfiguration(out storageBucketName);
 
-            //sanity check of config values
-            if (string.IsNullOrWhiteSpace(bucketName)) throw new ArgumentException("BucketName property not set");
-            if (string.IsNullOrWhiteSpace(server)) throw new ArgumentException("Server property not set");
-
-            Couchbase.Configuration.Client.ClientConfiguration clientConfig = new Couchbase.Configuration.Client.ClientConfiguration();
-            clientConfig.Servers.Clear();
-            foreach (var s in server.Split(new[] {','}, StringSplitOptions.RemoveEmptyEntries))
-            {
-                clientConfig.Servers.Add(new Uri(s));
-            }
-
-            clientConfig.BucketConfigs.Clear();
-            clientConfig.BucketConfigs.Add(bucketName, new Couchbase.Configuration.Client.BucketConfiguration
-            {
-                BucketName = this.bucketName,
-                Username = user,
-                Password = password
-            });
-
-            DataManager = new CouchBaseDataManager(bucketName, clientConfig);
+            DataManager = new CouchBaseDataManager(storageBucketName, clientConfiguration);
             return base.Init(name, providerRuntime, config);
         }
     }
