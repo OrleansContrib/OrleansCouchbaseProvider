@@ -32,16 +32,18 @@ namespace CouchBaseStorageTests
             Assert.Equal("orleans-storage", storageBucketName);
             Assert.Equal(storageBucketName, clientConfiguration.BucketConfigs.ElementAt(0).Key);
         }
-
-        [Fact]
-        public void ReadsPropertiesParsesSingleNodeConfigurationTest()
+        
+        [Theory]
+        [InlineData("Servers")]
+        [InlineData("Server")]
+        public void ReadsPropertiesParsesSingleNodeConfigurationTest(string nodesUriParameterName)
         {
             // Arrange
             const string singleNodeUri = "http://couchnode02:8091";
             var properties =
                 new Dictionary<string, string>()
                 {
-                    {"Servers", singleNodeUri},
+                    {nodesUriParameterName, singleNodeUri},
                     {"BucketName", "orleans-storage"}
                 };
 
@@ -54,8 +56,10 @@ namespace CouchBaseStorageTests
             Assert.Equal(new Uri(singleNodeUri), clientConfiguration.Servers.ElementAt(0));
         }
 
-        [Fact]
-        public void ReadsPropertiesParsesWithMultipleNodeConfigurationTest()
+        [Theory]
+        [InlineData("Servers")]
+        [InlineData("Server")]
+        public void ReadsPropertiesParsesWithMultipleNodeConfigurationTest(string nodesUriParameterName)
         {
             // Arrange
             const string multipleNodeUris =
@@ -64,7 +68,7 @@ namespace CouchBaseStorageTests
             var properties =
                 new Dictionary<string, string>()
                 {
-                    {"Servers", multipleNodeUris},
+                    {nodesUriParameterName, multipleNodeUris},
                     {"BucketName", "orleans-storage"}
                 };
 
@@ -78,8 +82,10 @@ namespace CouchBaseStorageTests
             Assert.Equal(new Uri("http://couchnode02:8091"), clientConfiguration.Servers.ElementAt(1));
         }
 
-        [Fact]
-        public void ReadsPropertiesParsesBucketCredentialsConfigurationTest()
+        [Theory]
+        [InlineData("Servers")]
+        [InlineData("Server")]
+        public void ReadsPropertiesParsesBucketCredentialsConfigurationTest(string nodesUriParameterName)
         {
             // Arrange
             const string userName = "bucketUser";
@@ -88,7 +94,7 @@ namespace CouchBaseStorageTests
             var properties =
                 new Dictionary<string, string>()
                 {
-                    {"Servers", "http://couchnode01:8091"},
+                    {nodesUriParameterName, "http://couchnode01:8091"},
                     {"BucketName", "orleans-storage"},
                     {"UserName", userName},
                     {"Password", password}

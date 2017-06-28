@@ -40,7 +40,8 @@ namespace CouchBaseProviders.Configuration
             // Assume provider properties client configuration
             var user = GetPropertyValue(properties, StorageConstants.PropertyNames.UserName, false);
             var password = GetPropertyValue(properties, StorageConstants.PropertyNames.Password, false);
-            var servers = GetPropertyValue(properties, StorageConstants.PropertyNames.Servers, true);
+            var servers = GetPropertyValue(properties, StorageConstants.PropertyNames.Server, false) ??
+                          GetPropertyValue(properties, StorageConstants.PropertyNames.Servers, true);
 
             var clientConfiguration = new ClientConfiguration();
 

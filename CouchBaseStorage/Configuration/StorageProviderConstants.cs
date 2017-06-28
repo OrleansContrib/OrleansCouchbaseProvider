@@ -21,6 +21,14 @@ namespace CouchBaseProviders.Configuration
             public static readonly string Servers = "Servers";
 
             /// <summary>
+            /// List of URI(s) to target Couchbase cluster node(s).
+            /// </summary>
+            /// <remarks>
+            /// An alternative to the <see cref="Servers"/> property, maintained for backward compatibility.
+            /// </remarks>
+            public static readonly string Server = "Server";
+
+            /// <summary>
             /// Target bucket name.
             /// </summary>
             public static readonly string BucketName = "BucketName";
