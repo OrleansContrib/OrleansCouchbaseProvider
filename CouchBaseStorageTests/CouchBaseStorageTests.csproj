@@ -89,6 +89,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Numerics" />
@@ -124,6 +125,7 @@
     <Otherwise />
   </Choose>
   <ItemGroup>
+    <Compile Include="CouchbaseConfigurationExtensionsTests.cs" />
     <Compile Include="CouchBaseMembershipDataManagerTests.cs" />
     <Compile Include="CouchBaseDataManagerTests.cs" />
     <Compile Include="CouchBaseGrainStorageTests.cs" />
