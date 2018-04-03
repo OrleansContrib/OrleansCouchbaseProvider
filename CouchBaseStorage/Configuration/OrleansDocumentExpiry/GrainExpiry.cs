@@ -7,15 +7,15 @@ namespace CouchBaseProviders.Configuration.OrleansDocumentExpiry
         [ConfigurationProperty(OrleansGrainExpiryConstants.GrainTypePropertyName, IsRequired = true, IsKey = true)]
         public string GrainType
         {
-            get => (string) this[OrleansGrainExpiryConstants.GrainTypePropertyName];
-            set => this[OrleansGrainExpiryConstants.GrainTypePropertyName] = value;
+            get { return (string) this[OrleansGrainExpiryConstants.GrainTypePropertyName]; }
+            set { this[OrleansGrainExpiryConstants.GrainTypePropertyName] = value; }
         }
 
         [ConfigurationProperty(OrleansGrainExpiryConstants.ExpiryPropertyName, IsRequired = true)]
         public string Expiry
         {
-            get => (string) this[OrleansGrainExpiryConstants.ExpiryPropertyName];
-            set => this[OrleansGrainExpiryConstants.ExpiryPropertyName] = value;
+            get { return (string) this[OrleansGrainExpiryConstants.ExpiryPropertyName]; }
+            set { this[OrleansGrainExpiryConstants.ExpiryPropertyName] = value; }
         }
     }
 }
