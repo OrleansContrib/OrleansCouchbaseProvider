@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Orleans.Providers;
 using Couchbase;
@@ -41,7 +42,9 @@ namespace Orleans.Storage
             string storageBucketName = null;
             var clientConfiguration = config.Properties.ReadCouchbaseConfiguration(out storageBucketName);
 
-            DataManager = new CouchBaseDataManager(storageBucketName, clientConfiguration);
+            var documentExpiries = OrleansConfigurationExtensions.ReadDocumentExpiryConfiguration();
+
+            DataManager = new CouchBaseDataManager(storageBucketName, clientConfiguration, documentExpiries);
             return base.Init(name, providerRuntime, config);
         }
     }
@@ -62,11 +65,16 @@ namespace Orleans.Storage
         protected IBucket bucket;
 
         /// <summary>
+        /// 
+        /// </summary>
+        private Dictionary<string, TimeSpan> DocumentExpiries { get; }
+
+        /// <summary>
         /// Constructor
         /// </summary>
         /// <param name="bucketName">Name of the bucket that this manager should operate on.</param>
         /// <param name="clientConfig">Configuration object for the database client</param>
-        public CouchBaseDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig)
+        public CouchBaseDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig, Dictionary<string, TimeSpan> documentExpiries)
         {
             //Bucket name should not be empty
             //Keep in mind that you should create the buckets before being able to use them either
@@ -96,6 +104,8 @@ namespace Orleans.Storage
             }
             //cache the bucket.
             bucket = ClusterHelper.GetBucket(this.bucketName);
+
+            DocumentExpiries = documentExpiries;
         }
 
         /// <summary>
@@ -131,7 +141,7 @@ namespace Orleans.Storage
                 return Tuple.Create<string, string>(null, "");
             throw result.Exception;
         }
-
+        
         /// <summary>
         /// Writes a document representing a grain state object.
         /// </summary>
@@ -142,10 +152,13 @@ namespace Orleans.Storage
         public async Task<string> Write(string collectionName, string key, string entityData, string eTag)
         {
             var docID = GetDocumentID(collectionName, key);
+
+            var expiry = DocumentExpiries.ContainsKey(collectionName) ? DocumentExpiries[collectionName] : TimeSpan.Zero;
+
             ulong realETag;
             if (ulong.TryParse(eTag, out realETag))
             {
-                var r = await bucket.UpsertAsync<string>(docID, entityData, realETag);
+                var r = await bucket.UpsertAsync<string>(docID, entityData, realETag, expiry);
                 if (!r.Success)
                 {
                     throw new Orleans.Storage.InconsistentStateException(r.Status.ToString(), eTag, r.Cas.ToString());
@@ -155,7 +168,7 @@ namespace Orleans.Storage
             }
             else
             {
-                var r = await bucket.InsertAsync<string>(docID, entityData);
+                var r = await bucket.InsertAsync<string>(docID, entityData, expiry);
 
                 //check if key exist and we don't have the CAS
                 if (!r.Success && r.Status == Couchbase.IO.ResponseStatus.KeyExists)
@@ -164,11 +177,12 @@ namespace Orleans.Storage
                 }
                 else if (!r.Success)
                     throw new System.Exception(r.Status.ToString());
+
                 return r.Cas.ToString();
             }
         }
 
-		public void Dispose()
+        public void Dispose()
         {
 			bucket.Dispose();
             bucket = null;

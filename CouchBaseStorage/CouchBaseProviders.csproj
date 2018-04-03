@@ -97,6 +97,11 @@
   <ItemGroup>
     <Compile Include="BaseJSONStorageProvider.cs" />
     <Compile Include="Configuration\CouchbaseConfigurationExtensions.cs" />
+    <Compile Include="Configuration\OrleansDocumentExpiry\GrainExpiry.cs" />
+    <Compile Include="Configuration\OrleansDocumentExpiry\GrainExpiryCollection.cs" />
+    <Compile Include="Configuration\OrleansDocumentExpiry\OrleansGrainExpiryConstants.cs" />
+    <Compile Include="Configuration\OrleansDocumentExpiry\OrleansConfigurationSection.cs" />
+    <Compile Include="Configuration\OrleansConfigurationExtensions.cs" />
     <Compile Include="CouchBaseMembershipProvider.cs" />
     <Compile Include="CouchBaseStorageProvider.cs" />
     <Compile Include="IJSONStateDataManager.cs" />
