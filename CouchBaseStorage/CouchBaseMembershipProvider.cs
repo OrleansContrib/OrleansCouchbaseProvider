@@ -113,7 +113,7 @@ namespace Orleans.Storage
         private readonly TableVersion tableVersion = new TableVersion(0, "0");
 
 
-        public MembershipDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig) : base(bucketName, clientConfig, new Dictionary<string, TimeSpan>())
+        public MembershipDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig) : base(bucketName, clientConfig)
         {
 
         }

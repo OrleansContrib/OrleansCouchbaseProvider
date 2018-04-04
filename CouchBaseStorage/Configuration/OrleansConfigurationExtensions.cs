@@ -1,22 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
-using CouchBaseProviders.Configuration.OrleansDocumentExpiry;
+using CouchBaseProviders.Configuration.CouchbaseOrleansDocumentExpiry;
 
 namespace CouchBaseProviders.Configuration
 {
     /// <summary>
     /// Orleans configuration utility extension methods.
     /// </summary>
-    public static class OrleansConfigurationExtensions
+    public static class CouchbaseOrleansConfigurationExtensions
     {
-        public static Dictionary<string, TimeSpan> ReadDocumentExpiryConfiguration()
+        public static Dictionary<string, TimeSpan> GetGrainExpiries(string couchbaseOrleansConfigurationSectionPath = CouchbaseOrleansGrainExpiryConstants.CouchbaseOrleansConfigurationSectionPath)
         {
             var result = new Dictionary<string, TimeSpan>();
 
-            if (string.IsNullOrWhiteSpace(OrleansGrainExpiryConstants.OrleansConfigurationSectionPath)) return result;
+            if (string.IsNullOrWhiteSpace(couchbaseOrleansConfigurationSectionPath)) return result;
 
-            var grainExpiriesConfig = (OrleansConfigurationSection)ConfigurationManager.GetSection(OrleansGrainExpiryConstants.OrleansConfigurationSectionPath);
+            var grainExpiriesConfig = (CouchbaseOrleansConfigurationSection)ConfigurationManager.GetSection(couchbaseOrleansConfigurationSectionPath);
             if (grainExpiriesConfig == null || grainExpiriesConfig.GrainExpiries.Count == 0) return result;
 
             foreach (GrainExpiry documentExpiry in grainExpiriesConfig.GrainExpiries)

@@ -29,7 +29,7 @@ namespace CouchBaseStorageTests
                     Username = "",
                     Password = ""
                 });
-                manager = new CouchBaseDataManager("default", clientConfig, new Dictionary<string, TimeSpan>());
+                manager = new CouchBaseDataManager("default", clientConfig);
             }
 
             public void Dispose()

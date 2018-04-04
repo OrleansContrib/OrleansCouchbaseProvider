@@ -42,7 +42,7 @@ namespace Orleans.Storage
             string storageBucketName = null;
             var clientConfiguration = config.Properties.ReadCouchbaseConfiguration(out storageBucketName);
 
-            var documentExpiries = OrleansConfigurationExtensions.ReadDocumentExpiryConfiguration();
+            var documentExpiries = CouchbaseOrleansConfigurationExtensions.GetGrainExpiries();
 
             DataManager = new CouchBaseDataManager(storageBucketName, clientConfiguration, documentExpiries);
             return base.Init(name, providerRuntime, config);
@@ -65,7 +65,7 @@ namespace Orleans.Storage
         protected IBucket bucket;
 
         /// <summary>
-        /// 
+        /// Document expiries by grain type
         /// </summary>
         private Dictionary<string, TimeSpan> DocumentExpiries { get; }
 
@@ -74,6 +74,16 @@ namespace Orleans.Storage
         /// </summary>
         /// <param name="bucketName">Name of the bucket that this manager should operate on.</param>
         /// <param name="clientConfig">Configuration object for the database client</param>
+        public CouchBaseDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig) : this(bucketName, clientConfig, new Dictionary<string, TimeSpan>())
+        {
+        }
+
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="bucketName">Name of the bucket that this manager should operate on.</param>
+        /// <param name="clientConfig">Configuration object for the database client</param>
+        /// /// <param name="documentExpiries">Expiry times by grain type</param>
         public CouchBaseDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig, Dictionary<string, TimeSpan> documentExpiries)
         {
             //Bucket name should not be empty
@@ -83,7 +93,7 @@ namespace Orleans.Storage
                 throw new ArgumentException("bucketName can not be null or empty");
             //config should not be null either
             if (clientConfig == null)
-                throw new ArgumentException("You should suply a configuration to connect to CouchBase");
+                throw new ArgumentException("You should supply a configuration to connect to CouchBase");
 
             this.bucketName = bucketName;
             if (!OrleansCouchBaseStorage.IsInitialized)
@@ -139,6 +149,7 @@ namespace Orleans.Storage
                 return Tuple.Create<string, string>(result.Value, result.Cas.ToString());
             if (!result.Success && result.Status == Couchbase.IO.ResponseStatus.KeyNotFound) //not found
                 return Tuple.Create<string, string>(null, "");
+
             throw result.Exception;
         }
         
