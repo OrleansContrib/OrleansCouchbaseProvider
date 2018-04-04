@@ -21,6 +21,8 @@ namespace CouchBaseProviders.Configuration
 
             foreach (GrainExpiry documentExpiry in grainExpiriesConfig.GrainExpiries)
             {
+                if (string.IsNullOrWhiteSpace(documentExpiry.GrainType) || result.ContainsKey(documentExpiry.GrainType)) continue;
+
                 var expiry = TimeSpan.Parse(documentExpiry.Expiry);
                 result.Add(documentExpiry.GrainType, expiry);
             }
