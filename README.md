@@ -72,18 +72,18 @@ Add the following under the <configSections> element:
 
 ``` xml
 <orleans>
-	<grainExpiry>
-	  <add grainType="grainX" expiresIn="0:0:1:0"></add>
-	</grainExpiry>
+  <grainExpiry>
+    <add grainType="grainX" expiresIn="0:0:1:0"></add>
+  </grainExpiry>
 </orleans>
 ```
 
 The expiresIn value must be a valid TimeSpan format. Examples include:
 
-10 seconds: 00:00:10
-10 minutes: 00:10:00
-10 hours: 10:00:00
-10 days: 10:00:00:00
+- 10 seconds: 00:00:10
+- 10 minutes: 00:10:00
+- 10 hours: 10:00:00
+- 10 days: 10:00:00:00
 
 Refer to the app.confg provided in the CouchBaseStorageTests project for more information.
 
