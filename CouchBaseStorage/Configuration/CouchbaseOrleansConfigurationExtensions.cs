@@ -27,9 +27,10 @@ namespace CouchBaseProviders.Configuration
             {
                 if (string.IsNullOrWhiteSpace(documentExpiry.GrainType) || result.ContainsKey(documentExpiry.GrainType)) continue;
 
-                if (!TimeSpan.TryParse(documentExpiry.Expiry, out TimeSpan expiry))
+                TimeSpan expiry;
+                if (!TimeSpan.TryParse(documentExpiry.Expiry, out expiry))
                 {
-                    exceptions.Add(new InvalidExpiryValueException($"Expiry value of {documentExpiry.Expiry} for grain type {documentExpiry.GrainType} is not in the correct format"));
+                    exceptions.Add(new InvalidExpiryValueException($"Expiry value of {documentExpiry.Expiry} for grain type {documentExpiry.GrainType} is not in the correct format."));
                     continue;
                 }
 
