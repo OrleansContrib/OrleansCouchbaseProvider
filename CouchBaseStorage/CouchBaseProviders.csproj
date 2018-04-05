@@ -102,6 +102,7 @@
     <Compile Include="Configuration\CouchbaseOrleansDocumentExpiry\GrainExpiryCollection.cs" />
     <Compile Include="Configuration\CouchbaseOrleansDocumentExpiry\CouchbaseOrleansGrainExpiryConstants.cs" />
     <Compile Include="Configuration\CouchbaseOrleansDocumentExpiry\CouchbaseOrleansConfigurationSection.cs" />
+    <Compile Include="Configuration\CouchbaseOrleansDocumentExpiry\InvalidDocumentExpiryConfigurationException.cs" />
     <Compile Include="Configuration\CouchbaseOrleansDocumentExpiry\InvalidExpiryValueException.cs" />
     <Compile Include="CouchBaseMembershipProvider.cs" />
     <Compile Include="CouchBaseStorageProvider.cs" />
