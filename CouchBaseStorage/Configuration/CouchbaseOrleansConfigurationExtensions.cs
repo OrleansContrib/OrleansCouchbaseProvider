@@ -30,7 +30,7 @@ namespace CouchBaseProviders.Configuration
                 TimeSpan expiry;
                 if (!TimeSpan.TryParse(documentExpiry.Expiry, out expiry))
                 {
-                    exceptions.Add(new InvalidExpiryValueException($"Expiry value of {documentExpiry.Expiry} for grain type {documentExpiry.GrainType} is not in the correct format."));
+                    exceptions.Add(new InvalidExpiryValueException($"Expiry value of '{documentExpiry.Expiry}' for grain type '{documentExpiry.GrainType}' is not in the correct format."));
                     continue;
                 }
 
@@ -40,7 +40,7 @@ namespace CouchBaseProviders.Configuration
             if (exceptions.Any())
             {
                 var message = new StringBuilder();
-                message.AppendLine($"{exceptions.Count} document expiry values are invalid. Please see inner exceptions for details then check your config file.");
+                message.AppendLine($"{exceptions.Count} document expiry values are invalid. Please see inner exceptions for details then correct your config file.");
                 message.AppendLine();
                 message.AppendLine("Valid examples include:");
                 message.AppendLine($"10 seconds: {TimeSpan.FromSeconds(10)}");
