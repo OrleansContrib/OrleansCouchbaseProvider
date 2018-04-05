@@ -52,6 +52,40 @@ For using the membership provider, you need a bucket named membership and you ca
 
 For your own usage, use one bucket only as couchbase advices itself and don't go over 10 buckets. You don't need much RAM for your own buckets as well since Orleans will keep the state of hot actors in memory itself.
 
+## Document expiry per grain type
+
+By default documents written to Couchbase will not have an expiry value set.
+
+Support has now been added to allow expiry values to be configured per grain type.
+
+To use this feature you need to update your app.config or web.config file;
+
+### Add config section declaration
+
+Add the following under the <configSections> element:
+
+``` xml
+<section name="orleans" type="CouchBaseProviders.Configuration.CouchbaseOrleansDocumentExpiry.CouchbaseOrleansConfigurationSection, CouchbaseProviders" />
+```
+
+### Add the config section with per grain expiry values:
+
+``` xml
+<orleans>
+  <grainExpiry>
+    <add grainType="grainX" expiresIn="0:0:1:0"></add>
+  </grainExpiry>
+</orleans>
+```
+
+The expiresIn value must be a valid TimeSpan format. Examples include:
+
+- 10 seconds: 00:00:10
+- 10 minutes: 00:10:00
+- 10 hours: 10:00:00
+- 10 days: 10:00:00:00
+
+Refer to the app.confg provided in the CouchBaseStorageTests project for more information.
 
 ## Do you want to help?
 
