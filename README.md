@@ -52,6 +52,41 @@ config.Globals.SeedNodes.Clear();
 
 NOTE: The membership provider requires a bucket called `membership`.
 
+## Document expiry per grain type
+
+By default documents written to Couchbase will not have an expiry value set.
+
+Support has now been added to allow expiry values to be configured per grain type.
+
+To use this feature you need to update your app.config or web.config file;
+
+### Add config section declaration
+
+Add the following under the <configSections> element:
+
+``` xml
+<section name="orleans" type="CouchBaseProviders.Configuration.CouchbaseOrleansDocumentExpiry.CouchbaseOrleansConfigurationSection, CouchbaseProviders" />
+```
+
+### Add the config section with per grain expiry values:
+
+``` xml
+<orleans>
+	<grainExpiry>
+	  <add grainType="grainX" expiresIn="0:0:1:0"></add>
+	</grainExpiry>
+</orleans>
+```
+
+The expiresIn value must be a valid TimeSpan format. Examples include:
+
+10 seconds: 00:00:10
+10 minutes: 00:10:00
+10 hours: 10:00:00
+10 days: 10:00:00:00
+
+Refer to the app.confg provided in the CouchBaseStorageTests project for more information.
+
 ## How to help
 
 Take a look at the current issues and report any issues you find.
