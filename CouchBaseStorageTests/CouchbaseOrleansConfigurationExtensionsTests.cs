@@ -4,7 +4,7 @@ using Xunit;
 
 namespace CouchBaseStorageTests
 {
-    public class OrleansConfigurationExtensionsTests
+    public class CouchbaseOrleansConfigurationExtensionsTests
     {
         [Fact]
         public void ReadOrleansConfigurationSectionTest()
