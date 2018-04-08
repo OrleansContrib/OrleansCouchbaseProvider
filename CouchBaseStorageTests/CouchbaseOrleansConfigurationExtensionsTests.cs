@@ -22,7 +22,7 @@ namespace CouchBaseStorageTests
         [Fact]
         public void ReadOrleansConfigurationSectionTestWithIncorrectPath()
         {
-            //Arrange
+            // Arrange
             var invalidConfigPath = "invalidPath";
 
             // Act
