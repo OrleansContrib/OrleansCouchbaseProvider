@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Orleans.Providers;
 using Couchbase;
@@ -41,7 +42,9 @@ namespace Orleans.Storage
             string storageBucketName = null;
             var clientConfiguration = config.Properties.ReadCouchbaseConfiguration(out storageBucketName);
 
-            DataManager = new CouchBaseDataManager(storageBucketName, clientConfiguration);
+            var documentExpiries = CouchbaseOrleansConfigurationExtensions.GetGrainExpiries();
+
+            DataManager = new CouchBaseDataManager(storageBucketName, clientConfiguration, documentExpiries);
             return base.Init(name, providerRuntime, config);
         }
     }
@@ -62,11 +65,26 @@ namespace Orleans.Storage
         protected IBucket bucket;
 
         /// <summary>
+        /// Document expiries by grain type
+        /// </summary>
+        private Dictionary<string, TimeSpan> DocumentExpiries { get; }
+
+        /// <summary>
         /// Constructor
         /// </summary>
         /// <param name="bucketName">Name of the bucket that this manager should operate on.</param>
         /// <param name="clientConfig">Configuration object for the database client</param>
-        public CouchBaseDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig)
+        public CouchBaseDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig) : this(bucketName, clientConfig, new Dictionary<string, TimeSpan>())
+        {
+        }
+
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="bucketName">Name of the bucket that this manager should operate on.</param>
+        /// <param name="clientConfig">Configuration object for the database client</param>
+        /// /// <param name="documentExpiries">Expiry times by grain type</param>
+        public CouchBaseDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig, Dictionary<string, TimeSpan> documentExpiries)
         {
             //Bucket name should not be empty
             //Keep in mind that you should create the buckets before being able to use them either
@@ -75,7 +93,7 @@ namespace Orleans.Storage
                 throw new ArgumentException("bucketName can not be null or empty");
             //config should not be null either
             if (clientConfig == null)
-                throw new ArgumentException("You should suply a configuration to connect to CouchBase");
+                throw new ArgumentException("You should supply a configuration to connect to CouchBase");
 
             this.bucketName = bucketName;
             if (!OrleansCouchBaseStorage.IsInitialized)
@@ -96,6 +114,8 @@ namespace Orleans.Storage
             }
             //cache the bucket.
             bucket = ClusterHelper.GetBucket(this.bucketName);
+
+            DocumentExpiries = documentExpiries;
         }
 
         /// <summary>
@@ -129,9 +149,10 @@ namespace Orleans.Storage
                 return Tuple.Create<string, string>(result.Value, result.Cas.ToString());
             if (!result.Success && result.Status == Couchbase.IO.ResponseStatus.KeyNotFound) //not found
                 return Tuple.Create<string, string>(null, "");
+
             throw result.Exception;
         }
-
+        
         /// <summary>
         /// Writes a document representing a grain state object.
         /// </summary>
@@ -142,10 +163,13 @@ namespace Orleans.Storage
         public async Task<string> Write(string collectionName, string key, string entityData, string eTag)
         {
             var docID = GetDocumentID(collectionName, key);
+
+            var expiry = DocumentExpiries.ContainsKey(collectionName) ? DocumentExpiries[collectionName] : TimeSpan.Zero;
+
             ulong realETag;
             if (ulong.TryParse(eTag, out realETag))
             {
-                var r = await bucket.UpsertAsync<string>(docID, entityData, realETag);
+                var r = await bucket.UpsertAsync<string>(docID, entityData, realETag, expiry);
                 if (!r.Success)
                 {
                     throw new Orleans.Storage.InconsistentStateException(r.Status.ToString(), eTag, r.Cas.ToString());
@@ -155,7 +179,7 @@ namespace Orleans.Storage
             }
             else
             {
-                var r = await bucket.InsertAsync<string>(docID, entityData);
+                var r = await bucket.InsertAsync<string>(docID, entityData, expiry);
 
                 //check if key exist and we don't have the CAS
                 if (!r.Success && r.Status == Couchbase.IO.ResponseStatus.KeyExists)
@@ -164,11 +188,12 @@ namespace Orleans.Storage
                 }
                 else if (!r.Success)
                     throw new System.Exception(r.Status.ToString());
+
                 return r.Cas.ToString();
             }
         }
 
-		public void Dispose()
+        public void Dispose()
         {
 			bucket.Dispose();
             bucket = null;

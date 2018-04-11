@@ -125,6 +125,7 @@
     <Otherwise />
   </Choose>
   <ItemGroup>
+    <Compile Include="CouchbaseOrleansConfigurationExtensionsTests.cs" />
     <Compile Include="CouchbaseConfigurationExtensionsTests.cs" />
     <Compile Include="CouchBaseMembershipDataManagerTests.cs" />
     <Compile Include="CouchBaseDataManagerTests.cs" />

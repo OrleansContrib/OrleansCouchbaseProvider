@@ -97,6 +97,12 @@
   <ItemGroup>
     <Compile Include="BaseJSONStorageProvider.cs" />
     <Compile Include="Configuration\CouchbaseConfigurationExtensions.cs" />
+    <Compile Include="Configuration\CouchbaseOrleansConfigurationExtensions.cs" />
+    <Compile Include="Configuration\CouchbaseOrleansDocumentExpiry\GrainExpiry.cs" />
+    <Compile Include="Configuration\CouchbaseOrleansDocumentExpiry\GrainExpiryCollection.cs" />
+    <Compile Include="Configuration\CouchbaseOrleansDocumentExpiry\CouchbaseOrleansGrainExpiryConstants.cs" />
+    <Compile Include="Configuration\CouchbaseOrleansDocumentExpiry\CouchbaseOrleansConfigurationSection.cs" />
+    <Compile Include="Configuration\CouchbaseOrleansDocumentExpiry\InvalidExpiryValueException.cs" />
     <Compile Include="CouchBaseMembershipProvider.cs" />
     <Compile Include="CouchBaseStorageProvider.cs" />
     <Compile Include="IJSONStateDataManager.cs" />
