@@ -1,26 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using Xunit;
-using Couchbase;
-using Orleans.Storage;
-using Orleans.TestingHost;
 using Orleans;
 using TestGrains;
+using Xunit;
 
-namespace CouchBaseStorageTests
+namespace CouchbaseStorageTests
 {
-    public class CouchBaseGrainStorageTests : IClassFixture<CouchBaseGrainStorageTests.CouchBaseGrainStorageFixture>
+    public class CouchbaseGrainStorageTests : IClassFixture<CouchbaseGrainStorageTests.CouchbaseGrainStorageFixture>
     {
-        public class CouchBaseGrainStorageFixture : IDisposable
+        public class CouchbaseGrainStorageFixture : IDisposable
         {
             public TestCluster hostedCluster;
 
             private void AdjustConfig(Orleans.Runtime.Configuration.ClusterConfiguration c)
             {
-                c.Globals.RegisterStorageProvider<Orleans.Storage.OrleansCouchBaseStorage>("Default",
+                c.Globals.RegisterStorageProvider<Orleans.Storage.OrleansCouchbaseStorage>("Default",
                     new Dictionary<string, string>()
                             {
                                 { "Servers","http://localhost:8091" },
@@ -32,7 +28,7 @@ namespace CouchBaseStorageTests
                 
             }
 
-            public CouchBaseGrainStorageFixture()
+            public CouchbaseGrainStorageFixture()
             {
                 GrainClient.Uninitialize();
                 TestClusterOptions o = new TestClusterOptions(2);
@@ -53,16 +49,16 @@ namespace CouchBaseStorageTests
 
         private TestCluster host;
 
-        public CouchBaseGrainStorageTests(CouchBaseGrainStorageTests.CouchBaseGrainStorageFixture fixture)
+        public CouchbaseGrainStorageTests(CouchbaseGrainStorageTests.CouchbaseGrainStorageFixture fixture)
         {
             host = fixture.hostedCluster;
         }
 
         [Fact]
-        public async Task StartSiloWithCouchBaseStorage()
+        public async Task StartSiloWithCouchbaseStorage()
         {
             var id = Guid.NewGuid();
-            var grain = host.GrainFactory.GetGrain<ICouchBaseStorageGrain>(id);
+            var grain = host.GrainFactory.GetGrain<ICouchbaseStorageGrain>(id);
             var first = await grain.GetValue();
             Assert.Equal(0, first);
             await grain.Write(3);
@@ -75,7 +71,7 @@ namespace CouchBaseStorageTests
         public async Task StoresGrainStateWithReferencedGrainTest()
         {
             var grainId = Guid.NewGuid();
-            var grain = this.host.GrainFactory.GetGrain<ICouchBaseWithGrainReferenceStorageGrain>(grainId);
+            var grain = this.host.GrainFactory.GetGrain<ICouchbaseWithGrainReferenceStorageGrain>(grainId);
 
             // Request grain to reference another grain
             var referenceTag = $"Referenced by grain {grainId}";
@@ -102,7 +98,7 @@ namespace CouchBaseStorageTests
             host.InitializeClient();
 
             // Revive persisted grain
-            var grainPostRestart = this.host.GrainFactory.GetGrain<ICouchBaseWithGrainReferenceStorageGrain>(grainId);
+            var grainPostRestart = this.host.GrainFactory.GetGrain<ICouchbaseWithGrainReferenceStorageGrain>(grainId);
 
             // Force read persisted state
             await grainPostRestart.Read();

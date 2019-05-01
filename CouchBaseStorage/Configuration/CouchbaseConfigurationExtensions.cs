@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Configuration;
 using Couchbase.Configuration.Client;
-using Couchbase.Configuration.Client.Providers;
+using CouchbaseProviders.Configuration;
 using Orleans.Providers;
 
 namespace CouchBaseProviders.Configuration
@@ -18,8 +18,7 @@ namespace CouchBaseProviders.Configuration
         /// <param name="properties">Orleans <see cref="IProviderConfiguration.Properties"/>.</param>
         /// <param name="storageBucketName">Name of bucket configured for grain state document storage.</param>
         /// <returns>Parsed Couchbase client configuration.</returns>
-        public static ClientConfiguration ReadCouchbaseConfiguration(
-            this IDictionary<string, string> properties, 
+        public static ClientConfiguration ReadCouchbaseConfiguration(this IDictionary<string, string> properties, 
             out string storageBucketName)
         {
             // Determine target data bucket

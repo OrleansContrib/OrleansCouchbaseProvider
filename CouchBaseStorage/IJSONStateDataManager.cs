@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 
 namespace Orleans.Storage
 {
@@ -18,7 +19,8 @@ namespace Orleans.Storage
         /// </summary>
         /// <param name="collectionName">The name of a collection, such as a type name</param>
         /// <param name="key">The primary key of the object to delete</param>
-        System.Threading.Tasks.Task Delete(string collectionName, string key,string eTag);
+        /// <param name="eTag"></param>
+        System.Threading.Tasks.Task Delete(string collectionName, string key, string eTag);
 
         /// <summary>
         /// Reads grain state from storage.
@@ -34,6 +36,18 @@ namespace Orleans.Storage
         /// <param name="collectionName">The name of a collection, such as a type name.</param>
         /// <param name="key">The primary key of the object to write.</param>
         /// <param name="entityData">A string containing a JSON representation of the entity.</param>
-        System.Threading.Tasks.Task<string> Write(string collectionName, string key, string entityData,string ETag);
+        /// <param name="ETag"></param>
+        System.Threading.Tasks.Task<string> Write(string collectionName, string key, string entityData, string ETag);
+
+        /// <inheritdoc />
+        /// <summary>
+        /// Writes a document representing a grain state object.
+        /// </summary>
+        /// <param name="collectionName">The type of the grain state object.</param>
+        /// <param name="key">The grain id string.</param>
+        /// <param name="doc"></param>
+        /// <param name="eTag"></param>
+        /// <returns>Completion promise for this operation.</returns>
+        Task<string> WriteAsync<T>(string collectionName, string key, T doc, string eTag)where T: DocBaseOrleans;
     }
 }

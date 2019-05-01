@@ -1,24 +1,31 @@
-using System;
-using System.Threading.Tasks;
-using Orleans.Providers;
 using Couchbase;
 using Couchbase.Core;
-using CouchBaseProviders.Configuration;
+using Microsoft.Extensions.Logging;
+using Orleans.Providers;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using CouchbaseProviders.CouchbaseComm;
+using CouchbaseProviders.Options;
+using Microsoft.Extensions.Options;
+using Orleans.Runtime;
+
+// ReSharper disable ClassNeverInstantiated.Global
 
 namespace Orleans.Storage
 {
+    /// <inheritdoc />
     /// <summary>
-    /// Orleans storage provider implementation for CouchBase http://www.couchbase.com 
+    /// OrleansDocType storage provider implementation for Couchbase http://www.couchbase.com 
     /// </summary>
     /// <remarks>
-    /// The storage provider should be registered via programatic config or in a config file before you can use it.
-    /// 
-    /// This providers uses optimistic concurrency and leverages the CAS of CouchBase when touching
+    /// The storage provider should be registered via programmatic config or in a config file before you can use it.
+    /// This providers uses optimistic concurrency and leverages the CAS of Couchbase when touching
     /// the database. If we don't use this feature always the last write wins and it might be desired
     /// in specific scenarios and can be added later on as a feature. CAS is a ulong value stored as string in the
     /// ETag of the state object.
     /// </remarks>
-    public class OrleansCouchBaseStorage : BaseJSONStorageProvider
+    public class OrleansCouchbaseStorage : BaseJSONStorageProvider
     {
         /// <summary>
         /// This is used internally only to avoid reinitializing the client connection
@@ -26,47 +33,76 @@ namespace Orleans.Storage
         /// buckets.
         /// </summary>
         internal static bool IsInitialized;
-        
+
+        private readonly ILogger<OrleansCouchbaseStorage> _logger;
+        private readonly CouchbaseProvidersSettings _settings;
+        private readonly IBucketFactory _bucketFactory;
+        private readonly string _storageBucketName;
+
+        public OrleansCouchbaseStorage(ILoggerFactory loggerFactory, IOptions<CouchbaseProvidersSettings> options, IBucketFactory bucketFactory, ITypeResolver typeResolver, IGrainFactory grainFactory) : base(loggerFactory, typeResolver, grainFactory)
+        {
+            _settings = options.Value;
+            _storageBucketName = _settings.StorageBucketName;
+            _logger = loggerFactory.CreateLogger<OrleansCouchbaseStorage>();
+            _bucketFactory = bucketFactory;
+        }
+
         /// <summary>
         /// Initializes the provider during silo startup.
         /// </summary>
         /// <param name="name">The name of this provider instance.</param>
-        /// <param name="providerRuntime">A Orleans runtime object managing all storage providers.</param>
+        /// <param name="providerRuntime">A OrleansDocType runtime object managing all storage providers.</param>
         /// <param name="config">Configuration info for this provider instance.</param>
         /// <returns>Completion promise for this operation.</returns>
         public override Task Init(string name, IProviderRuntime providerRuntime, IProviderConfiguration config)
         {
-            this.Name = name;
+            Name = name;
 
-            string storageBucketName = null;
-            var clientConfiguration = config.Properties.ReadCouchbaseConfiguration(out storageBucketName);
+//            var documentExpiries = CouchbaseOrleansConfigurationExtensions.GetGrainExpiries();
 
-            DataManager = new CouchBaseDataManager(storageBucketName, clientConfiguration);
+            DataManager = new CouchbaseDataManager(_storageBucketName, _bucketFactory);//, documentExpiries);
             return base.Init(name, providerRuntime, config);
         }
     }
 
     /// <summary>
-    /// Interfaces with CouchBase on behalf of the provider.
+    /// Interfaces with Couchbase on behalf of the provider.
     /// </summary>
-    public class CouchBaseDataManager : IJSONStateDataManager
+    public class CouchbaseDataManager : IJSONStateDataManager
     {
         /// <summary>
         /// Name of the bucket that it works with.
         /// </summary>
-        protected readonly string bucketName;
+        protected string BucketName;
 
         /// <summary>
         /// The cached bucket reference
         /// </summary>
-        protected IBucket bucket;
+        protected IBucket Bucket;
+
+        private readonly IBucketFactory _bucketFactory;
+
+        /// <summary>
+        /// Document expiries by grain type
+        /// </summary>
+        private Dictionary<string, TimeSpan> DocumentExpiries { get; }
 
         /// <summary>
         /// Constructor
         /// </summary>
         /// <param name="bucketName">Name of the bucket that this manager should operate on.</param>
         /// <param name="clientConfig">Configuration object for the database client</param>
-        public CouchBaseDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig)
+        public CouchbaseDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig) : this(bucketName, clientConfig, new Dictionary<string, TimeSpan>())
+        {
+        }
+
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="bucketName">Name of the bucket that this manager should operate on.</param>
+        /// <param name="clientConfig">Configuration object for the database client</param>
+        /// /// <param name="documentExpiries">Expiry times by grain type</param>
+        public CouchbaseDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig, Dictionary<string, TimeSpan> documentExpiries)
         {
             //Bucket name should not be empty
             //Keep in mind that you should create the buckets before being able to use them either
@@ -75,13 +111,13 @@ namespace Orleans.Storage
                 throw new ArgumentException("bucketName can not be null or empty");
             //config should not be null either
             if (clientConfig == null)
-                throw new ArgumentException("You should suply a configuration to connect to CouchBase");
+                throw new ArgumentException("You should supply a configuration to connect to Couchbase");
 
-            this.bucketName = bucketName;
-            if (!OrleansCouchBaseStorage.IsInitialized)
+            this.BucketName = bucketName;
+            if (!OrleansCouchbaseStorage.IsInitialized)
             {
                 ClusterHelper.Initialize(clientConfig);
-                OrleansCouchBaseStorage.IsInitialized = true;
+                OrleansCouchbaseStorage.IsInitialized = true;
             }
             else
             {
@@ -95,7 +131,28 @@ namespace Orleans.Storage
                 }
             }
             //cache the bucket.
-            bucket = ClusterHelper.GetBucket(this.bucketName);
+            Bucket = ClusterHelper.GetBucket(this.BucketName);
+
+            DocumentExpiries = documentExpiries;
+        }
+
+        public CouchbaseDataManager(string bucketName, IBucketFactory bucketFactory)
+        {
+            //Bucket name should not be empty
+            //Keep in mind that you should create the buckets before being able to use them either
+            //using the commandline tool or the web console
+            if (string.IsNullOrWhiteSpace(bucketName))
+                throw new ArgumentException("bucketName can not be null or empty");
+            //config should not be null either
+            if (bucketFactory.Config == null)
+                throw new ArgumentException("You should supply a configuration to connect to Couchbase");
+
+            if(!bucketFactory.IsClusterOpen())
+                throw new InitializationException("Couchbase Cluster not initialized.  Did you forget to add IBucketFactory to IOC?");
+            BucketName = bucketName;
+            Bucket = bucketFactory.GetBucket(bucketName);
+            OrleansCouchbaseStorage.IsInitialized = true;
+            _bucketFactory = bucketFactory;
         }
 
         /// <summary>
@@ -103,11 +160,12 @@ namespace Orleans.Storage
         /// </summary>
         /// <param name="collectionName">The type of the grain state object.</param>
         /// <param name="key">The grain id string.</param>
+        /// <param name="eTag"></param>
         /// <returns>Completion promise for this operation.</returns>
         public async Task Delete(string collectionName, string key, string eTag)
         {
             var docID = GetDocumentID(collectionName, key);
-            var result = await bucket.RemoveAsync(docID, ulong.Parse(eTag));
+            var result = await Bucket.RemoveAsync(docID, ulong.Parse(eTag));
             if (!result.Success)
                 throw new Orleans.Storage.InconsistentStateException(result.Message, eTag, result.Cas.ToString());
         }
@@ -120,15 +178,16 @@ namespace Orleans.Storage
         /// <returns>Completion promise for this operation.</returns>
         public async Task<Tuple<string, string>> Read(string collectionName, string key)
         {
-            var docID = GetDocumentID(collectionName, key);
+            var docId = GetDocumentID(collectionName, key);
 
             //If there is a value we read it and consider the CAS as ETag as well and return
             //both as a tuple
-            var result = await bucket.GetAsync<string>(docID);
+            var result = await Bucket.GetAsync<string>(docId);
             if (result.Success)
-                return Tuple.Create<string, string>(result.Value, result.Cas.ToString());
+                return Tuple.Create(result.Value, result.Cas.ToString());
             if (!result.Success && result.Status == Couchbase.IO.ResponseStatus.KeyNotFound) //not found
                 return Tuple.Create<string, string>(null, "");
+
             throw result.Exception;
         }
 
@@ -138,14 +197,21 @@ namespace Orleans.Storage
         /// <param name="collectionName">The type of the grain state object.</param>
         /// <param name="key">The grain id string.</param>
         /// <param name="entityData">The grain state data to be stored./</param>
+        /// <param name="eTag"></param>
         /// <returns>Completion promise for this operation.</returns>
         public async Task<string> Write(string collectionName, string key, string entityData, string eTag)
         {
-            var docID = GetDocumentID(collectionName, key);
-            ulong realETag;
-            if (ulong.TryParse(eTag, out realETag))
+            string docId = GetDocumentID(collectionName, key);
+
+            TimeSpan expiry = TimeSpan.Zero;
+            if (DocumentExpiries != null && DocumentExpiries.ContainsKey(collectionName))
             {
-                var r = await bucket.UpsertAsync<string>(docID, entityData, realETag);
+                expiry = DocumentExpiries[collectionName];
+            }
+
+            if (ulong.TryParse(eTag, out ulong realETag))
+            {
+                var r = await Bucket.UpsertAsync<string>(docId, entityData, realETag, expiry);
                 if (!r.Success)
                 {
                     throw new Orleans.Storage.InconsistentStateException(r.Status.ToString(), eTag, r.Cas.ToString());
@@ -155,7 +221,7 @@ namespace Orleans.Storage
             }
             else
             {
-                var r = await bucket.InsertAsync<string>(docID, entityData);
+                var r = await Bucket.InsertAsync<string>(docId, entityData, expiry);
 
                 //check if key exist and we don't have the CAS
                 if (!r.Success && r.Status == Couchbase.IO.ResponseStatus.KeyExists)
@@ -164,17 +230,61 @@ namespace Orleans.Storage
                 }
                 else if (!r.Success)
                     throw new System.Exception(r.Status.ToString());
+
                 return r.Cas.ToString();
             }
         }
 
-		public void Dispose()
+        /// <inheritdoc />
+        /// <summary>
+        /// Writes a document representing a grain state object.
+        /// </summary>
+        /// <param name="collectionName">The type of the grain state object.</param>
+        /// <param name="key">The grain id string.</param>
+        /// <param name="doc"></param>
+        /// <param name="eTag"></param>
+        /// <returns>Completion promise for this operation.</returns>
+        public async Task<string> WriteAsync<T>(string collectionName, string key, T doc, string eTag)where T: DocBaseOrleans
         {
-			bucket.Dispose();
-            bucket = null;
-            //Closes the DB connection
-            ClusterHelper.Close();
-            OrleansCouchBaseStorage.IsInitialized = false;
+            string docId = GetDocumentID(collectionName, key);
+            doc.Id = docId;
+            TimeSpan expiry = TimeSpan.Zero;
+            if (DocumentExpiries != null && DocumentExpiries.ContainsKey(collectionName))
+            {
+                expiry = DocumentExpiries[collectionName];
+            }
+
+            if (ulong.TryParse(eTag, out ulong realETag))
+            {
+                IOperationResult<T> r = await Bucket.UpsertAsync(docId, doc, realETag, expiry);
+                if (!r.Success)
+                {
+                    throw new Orleans.Storage.InconsistentStateException(r.Status.ToString(), eTag, r.Cas.ToString());
+                }
+
+                return r.Cas.ToString();
+            }
+            else
+            {
+                IOperationResult<T> r = await Bucket.InsertAsync(docId, doc, expiry);
+
+                //check if key exist and we don't have the CAS
+                if (!r.Success && r.Status == Couchbase.IO.ResponseStatus.KeyExists)
+                {
+                    throw new Orleans.Storage.InconsistentStateException(r.Status.ToString(), eTag, r.Cas.ToString());
+                }
+                else if (!r.Success)
+                    throw new System.Exception(r.Status.ToString());
+
+                return r.Cas.ToString();
+            }
+        }
+
+        public void Dispose()
+        {
+			_bucketFactory.CloseBucket(BucketName);
+            Bucket = null;
+            OrleansCouchbaseStorage.IsInitialized = false;
 			GC.SuppressFinalize(this);
         }
 
@@ -190,7 +300,8 @@ namespace Orleans.Storage
         /// The id will be of form TypeName_Key where TypeName doesn't include any namespace
         /// or version info.
         /// </remarks>
-        private string GetDocumentID(string collectionName, string key)
+        // ReSharper disable once VirtualMemberNeverOverridden.Global
+        protected virtual string GetDocumentID(string collectionName, string key)
         {
             return collectionName + "_" + key;
         }

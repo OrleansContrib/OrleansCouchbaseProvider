@@ -1,11 +1,11 @@
 ﻿using System;
-using CouchBaseProviders.Configuration;
+using CouchbaseProviders.Configuration;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
 using Xunit;
 
-namespace CouchBaseStorageTests
+namespace CouchbaseStorageTests
 {
     public class CouchbaseConfigurationExtensionsTests
     {

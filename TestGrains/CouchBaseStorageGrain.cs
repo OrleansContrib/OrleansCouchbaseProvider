@@ -4,7 +4,7 @@ using Orleans.Providers;
 
 namespace TestGrains
 {
-    public interface ICouchBaseStorageGrain : IGrainWithGuidKey
+    public interface ICouchbaseStorageGrain : IGrainWithGuidKey
     {
         Task Read();
         Task<int> GetValue();
@@ -18,7 +18,7 @@ namespace TestGrains
         public int value;
     }
 
-    public class CouchBaseStorageGrain : Grain<StorageData>, ICouchBaseStorageGrain
+    public class CouchbaseStorageGrain : Grain<StorageData>, ICouchbaseStorageGrain
     {
         public override Task OnActivateAsync()
         {

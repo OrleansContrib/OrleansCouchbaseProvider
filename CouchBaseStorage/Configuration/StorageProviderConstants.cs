@@ -1,7 +1,6 @@
-﻿using Couchbase.Configuration.Client.Providers;
-using Orleans.Providers;
+﻿using Orleans.Providers;
 
-namespace CouchBaseProviders.Configuration
+namespace CouchbaseProviders.Configuration
 {
     public static class StorageConstants
     {

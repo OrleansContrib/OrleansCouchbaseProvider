@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 
 using Orleans.Runtime;
@@ -15,15 +15,11 @@ namespace Orleans.Storage
     /// </summary>
     public abstract class BaseJSONStorageProvider : IStorageProvider
     {
-        private JsonSerializerSettings jsonSerializerSettings;
-
-        /// <summary>
-        /// Logger object
-        /// </summary>
-        public Logger Log
-        {
-            get; protected set;
-        }
+        private JsonSerializerSettings _jsonSerializerSettings;
+        private readonly ITypeResolver _typeResolver;
+        private readonly IGrainFactory _grainFactory;
+        private readonly ILogger<BaseJSONStorageProvider> _logger;
+        
 
         /// <summary>
         /// Storage provider name
@@ -39,23 +35,25 @@ namespace Orleans.Storage
         /// <summary>
         /// Constructor
         /// </summary>
-        protected BaseJSONStorageProvider()
+        protected BaseJSONStorageProvider(ILoggerFactory loggerFactory, ITypeResolver typeResolver, IGrainFactory grainFactory)
         {
+            _logger = loggerFactory.CreateLogger<BaseJSONStorageProvider>();
+            _typeResolver = typeResolver;
+            _grainFactory = grainFactory;
         }
 
         /// <summary>
         /// Initializes the storage provider.
         /// </summary>
         /// <param name="name">The name of this provider instance.</param>
-        /// <param name="providerRuntime">A Orleans runtime object managing all storage providers.</param>
+        /// <param name="providerRuntime">A OrleansDocType runtime object managing all storage providers.</param>
         /// <param name="config">Configuration info for this provider instance.</param>
         /// <returns>Completion promise for this operation.</returns>
         public virtual Task Init(string name, IProviderRuntime providerRuntime, IProviderConfiguration config)
         {
             this.Name = name;
-            this.jsonSerializerSettings = OrleansJsonSerializer.GetDefaultSerializerSettings();
-            Log = providerRuntime.GetLogger(this.GetType().FullName);
-            return TaskDone.Done;
+            this._jsonSerializerSettings = OrleansJsonSerializer.GetDefaultSerializerSettings(_typeResolver, _grainFactory);
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -67,7 +65,7 @@ namespace Orleans.Storage
             if (DataManager != null)
                 DataManager.Dispose();
             DataManager = null;
-            return TaskDone.Done;
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -130,7 +128,7 @@ namespace Orleans.Storage
             var grainTypeName = grainType.Split('.').Last();
             //When deleting we at least read the grain state at least once so we should have the ETag
             DataManager.Delete(grainTypeName, grainReference.ToKeyString(), grainState.ETag);
-            return TaskDone.Done;
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -144,7 +142,7 @@ namespace Orleans.Storage
         /// </remarks>
         protected string ConvertToStorageFormat(IGrainState grainState)
         {
-            var jsonState = JsonConvert.SerializeObject(grainState.State, this.jsonSerializerSettings);
+            var jsonState = JsonConvert.SerializeObject(grainState.State, this._jsonSerializerSettings);
             return jsonState;
         }
 
@@ -155,7 +153,7 @@ namespace Orleans.Storage
         /// <param name="entityData">JSON storage format representaiton of the grain state.</param>
         protected void ConvertFromStorageFormat(IGrainState grainState, string entityData)
         {
-            grainState.State = JsonConvert.DeserializeObject(entityData, grainState.State.GetType(), this.jsonSerializerSettings);
+            grainState.State = JsonConvert.DeserializeObject(entityData, grainState.State.GetType(), this._jsonSerializerSettings);
         }
     }
 }

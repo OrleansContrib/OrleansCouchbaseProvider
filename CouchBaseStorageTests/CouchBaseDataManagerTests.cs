@@ -7,17 +7,17 @@ using Xunit;
 using Orleans.Storage;
 using Couchbase;
 
-namespace CouchBaseStorageTests
+namespace CouchbaseStorageTests
 {
     
 
-    public class CouchBaseDataManagerTests : IClassFixture<CouchBaseDataManagerTests.CouchBaseFixture>
+    public class CouchbaseDataManagerTests : IClassFixture<CouchbaseDataManagerTests.CouchbaseFixture>
     {
-        public class CouchBaseFixture : IDisposable
+        public class CouchbaseFixture : IDisposable
         {
-            public CouchBaseDataManager manager;
+            public CouchbaseDataManager manager;
 
-            public CouchBaseFixture()
+            public CouchbaseFixture()
             {
                 var clientConfig = new Couchbase.Configuration.Client.ClientConfiguration();
                 clientConfig.Servers.Clear();
@@ -29,7 +29,7 @@ namespace CouchBaseStorageTests
                     Username = "",
                     Password = ""
                 });
-                manager = new CouchBaseDataManager("default", clientConfig);
+                manager = new CouchbaseDataManager("default", clientConfig);
             }
 
             public void Dispose()
@@ -43,9 +43,9 @@ namespace CouchBaseStorageTests
             }
         }
 
-        private CouchBaseDataManager manager;
+        private CouchbaseDataManager manager;
 
-        public CouchBaseDataManagerTests(CouchBaseFixture fixture)
+        public CouchbaseDataManagerTests(CouchbaseFixture fixture)
         {
             manager = fixture.manager;
             

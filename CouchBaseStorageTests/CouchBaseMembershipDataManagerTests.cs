@@ -10,7 +10,7 @@ using Orleans.Runtime;
 using Couchbase;
 using System.Net;
 
-namespace CouchBaseStorageTests
+namespace CouchbaseStorageTests
 {
     public static class TaskExtensions
     {
@@ -47,15 +47,15 @@ namespace CouchBaseStorageTests
         }
     }
 
-    public class CouchBaseMembershipDataManagerTests :IDisposable, IClassFixture<CouchBaseMembershipDataManagerTests.CouchBaseMembershipFixture>
+    public class CouchbaseMembershipDataManagerTests :IDisposable, IClassFixture<CouchbaseMembershipDataManagerTests.CouchbaseMembershipFixture>
     {
         private static readonly string hostName = Dns.GetHostName();
 
-        public class CouchBaseMembershipFixture:IDisposable
+        public class CouchbaseMembershipFixture:IDisposable
         {
             public MembershipDataManager manager;
 
-            public CouchBaseMembershipFixture()
+            public CouchbaseMembershipFixture()
             {
                 var clientConfig = new Couchbase.Configuration.Client.ClientConfiguration();
                 clientConfig.Servers.Clear();
@@ -79,7 +79,7 @@ namespace CouchBaseStorageTests
 
         private MembershipDataManager membershipTable;
 
-        public CouchBaseMembershipDataManagerTests(CouchBaseMembershipFixture fixture)
+        public CouchbaseMembershipDataManagerTests(CouchbaseMembershipFixture fixture)
         {
             membershipTable = fixture.manager;
         }

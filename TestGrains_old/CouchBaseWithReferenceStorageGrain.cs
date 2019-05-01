@@ -8,7 +8,7 @@ namespace TestGrains
     /// <summary>
     /// A grain that references another grain, also persisting other grain's reference into this grain's state.
     /// </summary>
-    public interface ICouchbaseWithGrainReferenceStorageGrain : IGrainWithGuidKey
+    public interface ICouchBaseWithGrainReferenceStorageGrain : IGrainWithGuidKey
     {
         Task Read();
 
@@ -33,7 +33,7 @@ namespace TestGrains
     }
 
     /// <inheritdoc />
-    public class CouchbaseWithGrainReferenceStorageGrain : Grain<ReferencedGrainState>, ICouchbaseWithGrainReferenceStorageGrain
+    public class CouchBaseWithGrainReferenceStorageGrain : Grain<ReferencedGrainState>, ICouchBaseWithGrainReferenceStorageGrain
     {
         public override Task OnActivateAsync()
         {

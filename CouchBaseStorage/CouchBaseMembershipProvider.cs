@@ -1,165 +1,212 @@
-﻿using Orleans;
-using Orleans.Messaging;
-using Orleans.Runtime.Configuration;
+﻿#region
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Orleans.Runtime;
 using Couchbase;
-using Couchbase.Core;
-using Couchbase.Linq;
-using Couchbase.Linq.Extensions;
-using Newtonsoft.Json;
+using Couchbase.Configuration.Client;
+using Couchbase.Logging;
 using Couchbase.N1QL;
+using CouchbaseProviders.CouchbaseComm;
+using CouchbaseProviders.Options;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Orleans.Messaging;
+using Orleans.Runtime;
+
+#endregion
+
+// ReSharper disable CheckNamespace
+// ReSharper disable ClassNeverInstantiated.Global
 
 namespace Orleans.Storage
 {
-    public class CouchBaseMembershipProvider : IMembershipTable
+    public class CouchbaseMembershipProvider : IMembershipTable
     {
-        private MembershipDataManager manager;
+        private readonly CouchbaseProvidersSettings _couchbaseProvidersSettings;
+        public readonly string BucketName;
+
+
+        private readonly IBucketFactory _bucketFactory;
+        private readonly ILogger<CouchbaseMembershipProvider> _logger;
+        private MembershipDataManager _manager;
+        private readonly ILoggerFactory _loggerFactory;
+
+        public CouchbaseMembershipProvider(ILogger<CouchbaseMembershipProvider> logger, IOptions<CouchbaseProvidersSettings> options, IBucketFactory bucketFactory, ILoggerFactory loggerFactory)
+        {
+            _logger = logger;
+            _couchbaseProvidersSettings = options.Value;
+            BucketName = _couchbaseProvidersSettings.MembershipBucketName;
+            _bucketFactory = bucketFactory;
+            _loggerFactory = loggerFactory;
+        }
 
         public Task DeleteMembershipTableEntries(string deploymentId)
         {
-            return manager.DeleteMembershipTableEntries(deploymentId);
+            return _manager.DeleteMembershipTableEntries(deploymentId);
         }
 
-        
 
-        public Task InitializeMembershipTable(GlobalConfiguration globalConfiguration, bool tryInitTableVersion, Logger traceLogger)
+        public Task InitializeMembershipTable(bool tryInitTableVersion)
         {
-            Couchbase.Configuration.Client.ClientConfiguration clientConfig = new Couchbase.Configuration.Client.ClientConfiguration();
-            clientConfig.Servers.Clear();
-            clientConfig.Servers.Add(new Uri(globalConfiguration.DataConnectionString));
-            clientConfig.BucketConfigs.Clear();
-            clientConfig.BucketConfigs.Add("membership", new Couchbase.Configuration.Client.BucketConfiguration
-            {
-                BucketName = "membership",
-                Username = "",
-                Password = ""
-            });
-            manager = new MembershipDataManager("membership", clientConfig);
-            return TaskDone.Done;
+            _manager = new MembershipDataManager(_couchbaseProvidersSettings.MembershipBucketName, _bucketFactory, _loggerFactory);
+            return Task.CompletedTask;
         }
 
         public Task<bool> InsertRow(MembershipEntry entry, TableVersion tableVersion)
         {
-            return manager.InsertRow(entry, tableVersion);
+            return _manager.InsertRow(entry, tableVersion);
         }
 
         public Task<MembershipTableData> ReadAll()
         {
-            return manager.ReadAll();
+            return _manager.ReadAll();
         }
 
         public Task<MembershipTableData> ReadRow(SiloAddress key)
         {
-            return manager.ReadRow(key);
+            return _manager.ReadRow(key);
         }
 
         public Task UpdateIAmAlive(MembershipEntry entry)
         {
-            return manager.UpdateIAmAlive(entry);
+            return _manager.UpdateIAmAlive(entry);
         }
 
         public Task<bool> UpdateRow(MembershipEntry entry, string etag, TableVersion tableVersion)
         {
-            return manager.UpdateRow(entry, tableVersion, etag);
+            return _manager.UpdateRow(entry, tableVersion, etag);
+        }
+
+        public Task CleanupDefunctSiloEntries(DateTimeOffset beforeDate)
+        {
+            return _manager.CleanupDefunctSiloEntries(beforeDate);
         }
     }
 
-    public class CouchBaseGatewayListProvider : IGatewayListProvider
+    public class CouchbaseGatewayListProvider : IGatewayListProvider
     {
-        public bool IsUpdatable { get { return true; } }
-        private TimeSpan refreshRate;
-        private MembershipDataManager manager;
-        public TimeSpan MaxStaleness
+        private readonly IBucketFactory _bucketFactory;
+        private MembershipDataManager _manager;
+        private CouchbaseProvidersSettings _settings;
+        private ILoggerFactory _loggerFactory;
+
+        public CouchbaseGatewayListProvider(IBucketFactory bucketFactory, IOptions<CouchbaseProvidersSettings> settings, ILoggerFactory loggerFactory)
         {
-            get
-            {
-                return refreshRate;
-            }
+            _settings = settings.Value;
+            _bucketFactory = bucketFactory;
+            _loggerFactory = loggerFactory;
         }
+
+        public bool IsUpdatable
+        {
+            get { return true; }
+        }
+
+        public TimeSpan MaxStaleness { get; private set; }
 
         public Task<IList<Uri>> GetGateways()
         {
-            return manager.GetGateWays();
+            return _manager.GetGateWays();
         }
 
 
-
-        public Task InitializeGatewayListProvider(ClientConfiguration clientConfiguration, Logger traceLogger)
+        public async Task InitializeGatewayListProvider()
         {
-            Couchbase.Configuration.Client.ClientConfiguration clientConfig = new Couchbase.Configuration.Client.ClientConfiguration();
-            clientConfig.Servers.Clear();
-            clientConfig.Servers.Add(new Uri(clientConfiguration.DataConnectionString));
-            clientConfig.BucketConfigs.Clear();
-            clientConfig.BucketConfigs.Add("membership", new Couchbase.Configuration.Client.BucketConfiguration
-            {
-                BucketName = "membership",
-                Username = "",
-                Password = ""
-            });
-            manager = new MembershipDataManager("membership", null);
+            _manager = new MembershipDataManager(_settings.MembershipBucketName, _bucketFactory, _loggerFactory);
 
-            refreshRate = clientConfiguration.GatewayListRefreshPeriod;
-            return TaskDone.Done;
+            MaxStaleness = _settings.RefreshRate;
+
+            //todo do we need this anymore?
+            await _manager.CleanupDefunctSiloEntries();
         }
     }
 
-    public class MembershipDataManager : CouchBaseDataManager
+    public class MembershipDataManager : CouchbaseDataManager
     {
         private readonly TableVersion tableVersion = new TableVersion(0, "0");
+        private readonly ILogger<MembershipDataManager> _logger;
 
-
-        public MembershipDataManager(string bucketName, Couchbase.Configuration.Client.ClientConfiguration clientConfig) : base(bucketName, clientConfig)
+        public MembershipDataManager(string bucketName, ClientConfiguration clientConfig) : base(bucketName, clientConfig)
         {
-
         }
 
+        public MembershipDataManager(string bucketName, IBucketFactory bucketFactory, ILoggerFactory loggerFactory) : base(bucketName, bucketFactory)
+        {
+            _logger = loggerFactory.CreateLogger<MembershipDataManager>();
+        }
+
+
+        public async Task DeleteMembershipTableEntries(string deploymentId)
+        {
+            var deleteQuery = new QueryRequest($"delete from {BucketName} where deploymentId = \"{deploymentId}\" and docType = \"{DocBaseOrleans.OrleansDocType}\" and docSubType = \"{DocSubTypes.Membership}\"");
+            deleteQuery.ScanConsistency(ScanConsistency.RequestPlus);
+            deleteQuery.Metrics(false);
+            IQueryResult<MembershipEntry> result = await Bucket.QueryAsync<MembershipEntry>(deleteQuery).ConfigureAwait(false);
+            //todo log failures
+        }
+
+        public async Task CleanupDefunctSiloEntries()
+        {
+            await CleanupDefunctSiloEntries(MaxAgeExpiredSilosMin);
+        }
+
+        internal async Task CleanupDefunctSiloEntries(DateTimeOffset beforeDate)
+        {
+            double totalMinutes = (DateTimeOffset.Now - beforeDate).TotalMinutes;
+            await CleanupDefunctSiloEntries(totalMinutes);
+        }
+
+        private async Task CleanupDefunctSiloEntries(double totalMinutes)
+        {
+            var deleteQuery = new QueryRequest($"delete from {BucketName} where status = {(int)SiloStatus.Dead} and docType = \"{DocBaseOrleans.OrleansDocType}\" and docSubType = \"{DocSubTypes.Membership}\" and STR_TO_MILLIS(Date_add_str(Now_utc(), -{totalMinutes}, 'minute'))  > STR_TO_MILLIS(iAmAliveTime)");
+            deleteQuery.ScanConsistency(ScanConsistency.RequestPlus);
+            deleteQuery.Metrics(false);
+            IQueryResult<MembershipEntry> result = await Bucket.QueryAsync<MembershipEntry>(deleteQuery).ConfigureAwait(false);
+            if (!result.Success)
+            {
+                _logger.LogError(new CouchbaseQueryResponseException($"{GetType().Name}: Error removing expired silo records from Couchbase. ", result.Status, result.Errors),"");
+            }
+        }
+
+        public static int MaxAgeExpiredSilosMin => 20;
+
         #region GatewayProvider
+
         public async Task<IList<Uri>> GetGateWays()
         {
-            BucketContext b = new BucketContext(ClusterHelper.GetBucket("membership"));
-            var getGateWaysQuery = new QueryRequest("select membership.* from membership");
-            getGateWaysQuery.ScanConsistency(ScanConsistency.RequestPlus);
-            getGateWaysQuery.Metrics(false);
-            IQueryResult<CouchBaseSiloRegistration> result = await bucket.QueryAsync<CouchBaseSiloRegistration>(getGateWaysQuery);
-
-            List<System.Uri> r = result.Rows.Where(x => x.Status == SiloStatus.Active && x.ProxyPort != 0).Select(x => CouchbaseSiloRegistrationmUtility.ToMembershipEntry(x).Item1).Select(x =>
-            {
-                //EXISTED IN CONSOLE MEMBERSHIP, am not sure why
-                //x.SiloAddress.Endpoint.Port = x.ProxyPort; 
-                return x.SiloAddress.ToGatewayUri();
-            })
+//            var b = new BucketContext(ClusterHelper.GetBucketAsync(CouchbaseMembershipProvider.BucketName));
+            //todo Is this the right query?
+//            var getGateWaysQuery = new QueryRequest($"select id from {BucketName} where docType = \"{DocBaseOrleans.OrleansDocType}\" and docSubType = \"{DocSubTypes.Membership}\" and status = {(int)SiloStatus.Active}");
+//            getGateWaysQuery.ScanConsistency(ScanConsistency.RequestPlus);
+//            getGateWaysQuery.Metrics(false);
+//            IQueryResult<CouchbaseSiloRegistration> result = await Bucket.QueryAsync<CouchbaseSiloRegistration>(getGateWaysQuery);
+            MembershipTableData tableData = await ReadAll();
+            List<MembershipEntry> result = tableData.Members.Select(tableDataMember => tableDataMember.Item1).ToList();
+            List<Uri> r = result.Where(x => x.Status == SiloStatus.Active && x.ProxyPort != 0).Select(x =>
+                {
+                    //EXISTED IN CONSOLE MEMBERSHIP, am not sure why
+                    x.SiloAddress.Endpoint.Port = x.ProxyPort; 
+                    Uri address =  x.SiloAddress.ToGatewayUri();
+                    return address;
+                })
                 .ToList();
             return r;
         }
-        #endregion
 
+        #endregion
 
 
         public async Task<bool> InsertRow(MembershipEntry entry, TableVersion tableVersion)
         {
             try
             {
-                CouchBaseSiloRegistration serializable = CouchbaseSiloRegistrationmUtility.FromMembershipEntry("", entry, "0");
-                IOperationResult<CouchBaseSiloRegistration> result = await bucket.InsertAsync<CouchBaseSiloRegistration>(entry.SiloAddress.ToParsableString(), serializable).ConfigureAwait(false);
-                return result.Success;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-        }
-
-        public async Task<bool> UpdateRow(MembershipEntry entry, TableVersion tableVersion, string eTag)
-        {
-            try
-            {
-                CouchBaseSiloRegistration serializableData = CouchbaseSiloRegistrationmUtility.FromMembershipEntry("", entry, eTag);
-                IOperationResult<CouchBaseSiloRegistration> result = await bucket.UpsertAsync<CouchBaseSiloRegistration>(entry.SiloAddress.ToParsableString(), serializableData, ulong.Parse(eTag)).ConfigureAwait(false);
+                CouchbaseSiloRegistration serializable = CouchbaseSiloRegistrationUtility.FromMembershipEntry("", entry, "0");
+//                IOperationResult<CouchbaseSiloRegistration> result = await Bucket.InsertAsync(entry.SiloAddress.ToParsableString(), serializable).ConfigureAwait(false);
+                IOperationResult<CouchbaseSiloRegistration> result = await Bucket.UpsertAsync(entry.SiloAddress.ToParsableString(), serializable).ConfigureAwait(false);
                 return result.Success;
             }
             catch (Exception)
@@ -170,53 +217,59 @@ namespace Orleans.Storage
 
         public async Task<MembershipTableData> ReadAll()
         {
-            BucketContext b = new BucketContext(bucket);
-            var readAllQuery = new QueryRequest("select meta(membership).id from membership");
+            //todo is this the right query?
+            var readAllQuery = new QueryRequest($"select meta().id from {BucketName} where docType = \"{DocBaseOrleans.OrleansDocType}\" and docSubType = \"{DocSubTypes.Membership}\"");
             readAllQuery.ScanConsistency(ScanConsistency.RequestPlus);
             readAllQuery.Metrics(false);
-            var ids = await bucket.QueryAsync<JObject>(readAllQuery).ConfigureAwait(false);
+            IQueryResult<JObject> ids = await Bucket.QueryAsync<JObject>(readAllQuery).ConfigureAwait(false);
 
-            var idStrings = ids.Rows.Select(x => x["id"].ToString()).ToArray();
-            IDictionary<string, IOperationResult<CouchBaseSiloRegistration>> actuals = await Task.Run
-                (() => bucket.Get<CouchBaseSiloRegistration>(idStrings));//has no async version with batch reads
-            List<Tuple<MembershipEntry, string>> entries = new List<Tuple<MembershipEntry, string>>();
-            foreach (var actualRow in actuals.Values)
+            List<string> idStrings = ids.Rows.Select(x => x["id"].ToString()).ToList();
+            IDocumentResult<CouchbaseSiloRegistration>[] actuals = await Bucket.GetDocumentsAsync<CouchbaseSiloRegistration>(idStrings); //has no async version with batch reads
+            var entries = new List<Tuple<MembershipEntry, string>>();
+            foreach (IDocumentResult<CouchbaseSiloRegistration> actualRow in actuals)
             {
-                //var actualRow = await bucket.GetAsync<CouchBaseSiloRegistration>(r["id"].ToString());
-                entries.Add(
-                    CouchbaseSiloRegistrationmUtility.ToMembershipEntry(actualRow.Value, actualRow.Cas.ToString()));
+                //var actualRow = await bucket.GetAsync<CouchbaseSiloRegistration>(r["id"].ToString());
+                entries.Add(CouchbaseSiloRegistrationUtility.ToMembershipEntry(actualRow.Content, actualRow.Document.Cas.ToString()));
             }
+
             return new MembershipTableData(entries, new TableVersion(0, "0"));
-        }
-
-
-        public async Task DeleteMembershipTableEntries(string deploymentId)
-        {
-
-            QueryRequest deleteQuery = new QueryRequest("delete from membership where deploymentId = \"" + deploymentId + "\"");
-            deleteQuery.ScanConsistency(ScanConsistency.RequestPlus);
-            deleteQuery.Metrics(false);
-            var result = await bucket.QueryAsync<MembershipEntry>(deleteQuery).ConfigureAwait(false);
-
         }
 
         public async Task<MembershipTableData> ReadRow(SiloAddress key)
         {
-            List<Tuple<MembershipEntry, string>> entries = new List<Tuple<MembershipEntry, string>>();
-            IOperationResult<CouchBaseSiloRegistration> row = await bucket.GetAsync<CouchBaseSiloRegistration>(key.ToParsableString()).ConfigureAwait(false);
+            var entries = new List<Tuple<MembershipEntry, string>>();
+            IOperationResult<CouchbaseSiloRegistration> row = await Bucket.GetAsync<CouchbaseSiloRegistration>(key.ToParsableString()).ConfigureAwait(false);
             if (row.Success)
             {
-                entries.Add(CouchbaseSiloRegistrationmUtility.ToMembershipEntry(row.Value, row.Cas.ToString()));
+                entries.Add(CouchbaseSiloRegistrationUtility.ToMembershipEntry(row.Value, row.Cas.ToString()));
             }
+
             return new MembershipTableData(entries, new TableVersion(0, "0"));
         }
 
         public async Task UpdateIAmAlive(MembershipEntry entry)
         {
-            var data = await bucket.GetAsync<CouchBaseSiloRegistration>(entry.SiloAddress.ToParsableString());
+            IOperationResult<CouchbaseSiloRegistration> data = await Bucket.GetAsync<CouchbaseSiloRegistration>(entry.SiloAddress.ToParsableString());
             data.Value.IAmAliveTime = entry.IAmAliveTime;
-            var address = CouchbaseSiloRegistrationmUtility.ToMembershipEntry(data.Value).Item1.SiloAddress;
-            await bucket.UpsertAsync<CouchBaseSiloRegistration>(address.ToParsableString(), data.Value).ConfigureAwait(false);
+            SiloAddress address = CouchbaseSiloRegistrationUtility.ToMembershipEntry(data.Value).Item1.SiloAddress;
+            await Bucket.UpsertAsync(address.ToParsableString(), data.Value).ConfigureAwait(false);
         }
+
+        public async Task<bool> UpdateRow(MembershipEntry entry, TableVersion tableVersion, string eTag)
+        {
+            try
+            {
+                CouchbaseSiloRegistration serializableData = CouchbaseSiloRegistrationUtility.FromMembershipEntry("", entry, eTag);
+                var temp = JsonConvert.SerializeObject(serializableData);
+                IOperationResult<CouchbaseSiloRegistration> result = await Bucket.UpsertAsync(entry.SiloAddress.ToParsableString(), serializableData, ulong.Parse(eTag)).ConfigureAwait(false);
+                return result.Success;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+
     }
 }
